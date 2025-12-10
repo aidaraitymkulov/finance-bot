@@ -32,7 +32,5 @@ export const validate = (config: Record<string, unknown>) => {
     enableImplicitConversion: true,
   });
 
-  const errors = (validatedConfig as any).constructor ? undefined : undefined;
-
   return validatedConfig;
-}
+};
