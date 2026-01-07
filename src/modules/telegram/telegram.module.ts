@@ -3,9 +3,16 @@ import { ConfigService } from "@nestjs/config";
 import { TelegrafModule } from "nestjs-telegraf";
 import { TelegramService } from "./telegram.service";
 import { TelegramUpdate } from "./telegram.update";
+import { DialogStateService } from "./state/dialog-state.service";
+import { UserModule } from "../user/user.module";
+import { CategoryModule } from "../category/category.module";
+import { OperationModule } from "../operation/operation.module";
 
 @Module({
   imports: [
+    UserModule,
+    CategoryModule,
+    OperationModule,
     TelegrafModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
@@ -29,6 +36,6 @@ import { TelegramUpdate } from "./telegram.update";
       },
     }),
   ],
-  providers: [TelegramUpdate, TelegramService],
+  providers: [DialogStateService, TelegramUpdate, TelegramService],
 })
 export class TelegramModule {}
