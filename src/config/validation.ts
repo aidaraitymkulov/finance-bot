@@ -25,6 +25,12 @@ class EnvVariables {
 
   @IsString()
   DB_NAME: string;
+
+  @IsString()
+  TELEGRAM_BOT_TOKEN: string;
+
+  @IsNumber()
+  ALLOWED_TELEGRAM_USER_ID: number;
 }
 
 export const validate = (config: Record<string, unknown>) => {
