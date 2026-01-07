@@ -6,7 +6,7 @@ import type {
   ReplyKeyboardMarkup,
   Update as TgUpdate,
 } from "@telegraf/types";
-import { Context } from "telegraf";
+import { Context, Markup } from "telegraf";
 import { CategoryService } from "../category/category.service";
 import { CategoryType } from "../category/category-type.enum";
 import { OperationService } from "../operation/operation.service";
@@ -27,8 +27,10 @@ import {
   buildLast7DaysRange,
   buildTodayRange,
 } from "../../common/utils/data-range.util";
+import { UserEntity } from "../user/user.entity";
 
 type BotContext = Context<TgUpdate>;
+const LAST_PAGE_SIZE = 10;
 
 const isTextMessage = (message?: Message): message is Message.TextMessage =>
   Boolean(message && "text" in message);
@@ -148,6 +150,29 @@ export class TelegramUpdate {
       ctx,
       "Выберите период для статистики:",
       buildPeriodSelectKeyboard().reply_markup,
+    );
+  }
+
+  @Command("last")
+  async onLast(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const telegramUser = this.getTelegramUser(ctx);
+    if (!telegramUser) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
+    await this.sendLastOperations(ctx, user, 0);
+
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
     );
   }
 
@@ -347,6 +372,31 @@ export class TelegramUpdate {
     await this.sendSummaryForPeriod(ctx, userId, periodType);
   }
 
+  @Action(/last_more:(\d+)/)
+  async onLastMore(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const telegramUser = this.getTelegramUser(ctx);
+    if (!telegramUser) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const offsetRaw = data?.split(":")[1];
+    const offset = offsetRaw ? Number(offsetRaw) : NaN;
+    if (!Number.isFinite(offset) || offset < 0) {
+      await ctx.answerCbQuery("Не удалось определить страницу.");
+      return;
+    }
+
+    const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
+    await ctx.answerCbQuery();
+    await this.sendLastOperations(ctx, user, offset);
+  }
+
   private async ensureAllowed(ctx: BotContext) {
     if (!this.allowedUserId) {
       return true;
@@ -403,7 +453,7 @@ export class TelegramUpdate {
         await ctx.reply("Команда /rating пока не реализована.");
         break;
       case MAIN_MENU_BUTTONS.last:
-        await ctx.reply("Команда /last пока не реализована.");
+        await this.onLast(ctx);
         break;
       case MAIN_MENU_BUTTONS.cancel:
         await this.cancelDialog(ctx, this.getUserId(ctx) ?? "");
@@ -466,6 +516,47 @@ export class TelegramUpdate {
       default:
         await ctx.reply("Не удалось определить период.");
     }
+  }
+
+  private async sendLastOperations(ctx: BotContext, user: UserEntity, offset: number) {
+    const { items, hasMore } = await this.operationService.getLastOperationsPage(
+      user,
+      LAST_PAGE_SIZE,
+      offset,
+    );
+
+    if (items.length === 0) {
+      if (offset === 0) {
+        await ctx.reply("Операций пока нет.");
+      } else {
+        await ctx.reply("Больше операций нет.");
+      }
+      return;
+    }
+
+    const lines = items.map((operation) => {
+      const date = this.formatDateTime(operation.createdAt);
+      const typeLabel = operation.type === CategoryType.INCOME ? "Доход" : "Расход";
+      return `${date} • ${typeLabel} • ${operation.category.displayName} • ${operation.amount.toFixed(
+        2,
+      )}`;
+    });
+
+    const message = ["Последние операции:", ...lines].join("\n");
+
+    if (hasMore) {
+      const nextOffset = offset + items.length;
+      await this.replyWithMarkup(ctx, message, this.buildLastMoreKeyboard(nextOffset).reply_markup);
+      return;
+    }
+
+    await ctx.reply(message);
+  }
+
+  private buildLastMoreKeyboard(nextOffset: number) {
+    return Markup.inlineKeyboard([
+      Markup.button.callback("Показать еще", `last_more:${nextOffset}`),
+    ]);
   }
 
   private async sendSummary(ctx: BotContext, userId: string, start: Date, end: Date, days: number) {
@@ -534,6 +625,13 @@ export class TelegramUpdate {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+  }
+
+  private formatDateTime(date: Date): string {
+    const base = this.formatDate(date);
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${base} ${hours}:${minutes}`;
   }
 
   private async cancelDialog(ctx: BotContext, userId: string) {
