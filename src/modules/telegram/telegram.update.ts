@@ -31,6 +31,7 @@ import { UserEntity } from "../user/user.entity";
 
 type BotContext = Context<TgUpdate>;
 const LAST_PAGE_SIZE = 10;
+const STATS_CATEGORY_PREFIX = "stats_category";
 
 const isTextMessage = (message?: Message): message is Message.TextMessage =>
   Boolean(message && "text" in message);
@@ -145,11 +146,54 @@ export class TelegramUpdate {
       return;
     }
 
-    this.dialogStateService.set(userId, { flow: "stats", step: "stats_period" });
+    this.dialogStateService.set(userId, { flow: "stats", step: "stats_mode" });
+    await this.replyWithMarkup(ctx, "Что показать?", this.buildStatsModeKeyboard().reply_markup);
+  }
+
+  @Command("rating")
+  async onRating(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    this.dialogStateService.set(userId, { flow: "rating", step: "rating_period" });
     await this.replyWithMarkup(
       ctx,
-      "Выберите период для статистики:",
-      buildPeriodSelectKeyboard().reply_markup,
+      "Выберите период для рейтинга расходов:",
+      buildPeriodSelectKeyboard("rating").reply_markup,
+    );
+  }
+
+  @Command("help")
+  async onHelp(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const message = [
+      "Доступные команды:",
+      "/income — добавить доход",
+      "/expense — добавить расход",
+      "/stats — сводка или статистика по категории",
+      "/rating — рейтинг расходов по категориям",
+      "/last — последние операции",
+      "/cancel — отменить текущую операцию",
+      "/help — эта справка",
+    ].join("\n");
+
+    await ctx.reply(message);
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
     );
   }
 
@@ -229,6 +273,11 @@ export class TelegramUpdate {
       return;
     }
 
+    if (state.flow === "rating") {
+      await this.handleRatingText(ctx, userId, text, state.step);
+      return;
+    }
+
     if (state.step === "amount") {
       const amount = this.parseAmount(text);
       if (!amount) {
@@ -300,7 +349,7 @@ export class TelegramUpdate {
     }
   }
 
-  @Action(/category:(.+)/)
+  @Action(/^category:(.+)$/)
   async onCategorySelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
@@ -336,7 +385,7 @@ export class TelegramUpdate {
     await ctx.reply("Введите комментарий или '-' без комментария.");
   }
 
-  @Action(/stats_period:(.+)/)
+  @Action(/^stats_period:(.+)$/)
   async onStatsPeriodSelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
@@ -372,7 +421,214 @@ export class TelegramUpdate {
     await this.sendSummaryForPeriod(ctx, userId, periodType);
   }
 
-  @Action(/last_more:(\d+)/)
+  @Action(/^stats_mode:(.+)$/)
+  async onStatsModeSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "stats") {
+      await ctx.answerCbQuery("Сначала выберите статистику.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const mode = data?.split(":")[1];
+    if (!mode) {
+      await ctx.answerCbQuery("Не удалось определить режим.");
+      return;
+    }
+
+    if (mode === "summary") {
+      this.dialogStateService.update(userId, { step: "stats_period" });
+      await ctx.answerCbQuery();
+      await this.replyWithMarkup(
+        ctx,
+        "Выберите период для статистики:",
+        buildPeriodSelectKeyboard("stats").reply_markup,
+      );
+      return;
+    }
+
+    if (mode === "category") {
+      this.dialogStateService.update(userId, { step: "stats_category_type" });
+      await ctx.answerCbQuery();
+      await this.replyWithMarkup(
+        ctx,
+        "Выберите тип операций:",
+        this.buildStatsTypeKeyboard().reply_markup,
+      );
+      return;
+    }
+
+    await ctx.answerCbQuery("Не удалось определить режим.");
+  }
+
+  @Action(/^stats_type:(.+)$/)
+  async onStatsTypeSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "stats" || state.step !== "stats_category_type") {
+      await ctx.answerCbQuery("Сначала выберите тип операций.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
+      return;
+    }
+
+    const categoryType = type === "income" ? CategoryType.INCOME : CategoryType.EXPENSE;
+    this.dialogStateService.update(userId, {
+      step: "stats_category_select",
+      type: categoryType,
+    });
+
+    const categories = await this.categoryService.getCategoriesByType(categoryType);
+    const keyboard =
+      categoryType === CategoryType.INCOME
+        ? buildIncomeCategoriesKeyboard(categories, STATS_CATEGORY_PREFIX)
+        : buildExpenseCategoriesKeyboard(categories, STATS_CATEGORY_PREFIX);
+
+    await ctx.answerCbQuery();
+    await this.replyWithMarkup(ctx, "Выберите категорию:", keyboard.reply_markup);
+  }
+
+  @Action(/^stats_category:(.+)$/)
+  async onStatsCategorySelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "stats" || state.step !== "stats_category_select") {
+      await ctx.answerCbQuery("Сначала выберите категорию.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const categoryCode = data?.split(":")[1];
+    if (!categoryCode) {
+      await ctx.answerCbQuery("Не удалось определить категорию.");
+      return;
+    }
+
+    if (!state.type) {
+      await ctx.answerCbQuery("Не удалось определить тип операции.");
+      this.dialogStateService.clear(userId);
+      return;
+    }
+
+    this.dialogStateService.update(userId, {
+      step: "stats_category_period",
+      categoryCode,
+    });
+
+    await ctx.answerCbQuery();
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите период для статистики:",
+      buildPeriodSelectKeyboard("stats_category").reply_markup,
+    );
+  }
+
+  @Action(/^stats_category_period:(.+)$/)
+  async onStatsCategoryPeriodSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "stats") {
+      await ctx.answerCbQuery("Сначала выберите статистику.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const periodType = data?.split(":")[1] as PeriodType | undefined;
+    if (!periodType) {
+      await ctx.answerCbQuery("Не удалось определить период.");
+      return;
+    }
+
+    if (periodType === "custom") {
+      this.dialogStateService.update(userId, { step: "stats_category_custom_period" });
+      await ctx.answerCbQuery();
+      await ctx.reply("Введите период в формате YYYY-MM-DD YYYY-MM-DD.");
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await this.sendCategoryStatsForPeriod(ctx, userId, periodType);
+  }
+
+  @Action(/^rating_period:(.+)$/)
+  async onRatingPeriodSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "rating") {
+      await ctx.answerCbQuery("Сначала выберите рейтинг расходов.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const periodType = data?.split(":")[1] as PeriodType | undefined;
+    if (!periodType) {
+      await ctx.answerCbQuery("Не удалось определить период.");
+      return;
+    }
+
+    if (periodType === "custom") {
+      this.dialogStateService.update(userId, { step: "rating_custom_period" });
+      await ctx.answerCbQuery();
+      await ctx.reply("Введите период в формате YYYY-MM-DD YYYY-MM-DD.");
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await this.sendRatingForPeriod(ctx, userId, periodType);
+  }
+
+  @Action(/^last_more:(\d+)$/)
   async onLastMore(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
@@ -450,10 +706,13 @@ export class TelegramUpdate {
         await this.onStats(ctx);
         break;
       case MAIN_MENU_BUTTONS.rating:
-        await ctx.reply("Команда /rating пока не реализована.");
+        await this.onRating(ctx);
         break;
       case MAIN_MENU_BUTTONS.last:
         await this.onLast(ctx);
+        break;
+      case MAIN_MENU_BUTTONS.help:
+        await this.onHelp(ctx);
         break;
       case MAIN_MENU_BUTTONS.cancel:
         await this.cancelDialog(ctx, this.getUserId(ctx) ?? "");
@@ -482,7 +741,32 @@ export class TelegramUpdate {
     text: string,
     step: DialogState["step"],
   ) {
-    if (step !== "stats_custom_period") {
+    if (step !== "stats_custom_period" && step !== "stats_category_custom_period") {
+      await ctx.reply("Сначала выберите вариант через кнопки.");
+      return;
+    }
+
+    const range = this.parseCustomDateRange(text);
+    if (!range) {
+      await ctx.reply("Неверный формат. Пример: 2025-01-01 2025-01-31");
+      return;
+    }
+
+    if (step === "stats_custom_period") {
+      await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+      return;
+    }
+
+    await this.sendCategoryStats(ctx, userId, range.start, range.end, range.days);
+  }
+
+  private async handleRatingText(
+    ctx: BotContext,
+    userId: string,
+    text: string,
+    step: DialogState["step"],
+  ) {
+    if (step !== "rating_custom_period") {
       await ctx.reply("Сначала выберите период.");
       return;
     }
@@ -493,7 +777,7 @@ export class TelegramUpdate {
       return;
     }
 
-    await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+    await this.sendRating(ctx, userId, range.start, range.end, range.days);
   }
 
   private async sendSummaryForPeriod(ctx: BotContext, userId: string, period: PeriodType) {
@@ -511,6 +795,50 @@ export class TelegramUpdate {
       case "month": {
         const range = buildCurrentMonthRange();
         await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      default:
+        await ctx.reply("Не удалось определить период.");
+    }
+  }
+
+  private async sendRatingForPeriod(ctx: BotContext, userId: string, period: PeriodType) {
+    switch (period) {
+      case "today": {
+        const range = buildTodayRange();
+        await this.sendRating(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      case "last7": {
+        const range = buildLast7DaysRange();
+        await this.sendRating(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      case "month": {
+        const range = buildCurrentMonthRange();
+        await this.sendRating(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      default:
+        await ctx.reply("Не удалось определить период.");
+    }
+  }
+
+  private async sendCategoryStatsForPeriod(ctx: BotContext, userId: string, period: PeriodType) {
+    switch (period) {
+      case "today": {
+        const range = buildTodayRange();
+        await this.sendCategoryStats(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      case "last7": {
+        const range = buildLast7DaysRange();
+        await this.sendCategoryStats(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      case "month": {
+        const range = buildCurrentMonthRange();
+        await this.sendCategoryStats(ctx, userId, range.start, range.end, range.days);
         return;
       }
       default:
@@ -587,6 +915,97 @@ export class TelegramUpdate {
     );
   }
 
+  private async sendCategoryStats(
+    ctx: BotContext,
+    userId: string,
+    start: Date,
+    end: Date,
+    days: number,
+  ) {
+    const state = this.dialogStateService.get(userId);
+    if (!state?.categoryCode || !state.type) {
+      await ctx.reply("Сначала выберите категорию.");
+      return;
+    }
+
+    const telegramUser = this.getTelegramUser(ctx);
+    if (!telegramUser) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    const category = await this.categoryService.getByCode(state.type, state.categoryCode);
+    if (!category) {
+      await ctx.reply("Категория не найдена.");
+      this.dialogStateService.clear(userId);
+      return;
+    }
+
+    const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
+    const stats = await this.reportService.getCategoryStats(user, category.id, {
+      start,
+      end,
+      days,
+    });
+
+    const message = [
+      `Период: ${this.formatDate(start)} — ${this.formatDate(end)}`,
+      `Категория: ${category.displayName}`,
+      `Сумма: ${stats.total.toFixed(2)}`,
+      `Количество операций: ${stats.count}`,
+      `Среднее в день: ${stats.avgPerDay.toFixed(2)}`,
+    ].join("\n");
+
+    this.dialogStateService.clear(userId);
+    await ctx.reply(message);
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
+    );
+  }
+
+  private async sendRating(ctx: BotContext, userId: string, start: Date, end: Date, days: number) {
+    const telegramUser = this.getTelegramUser(ctx);
+    if (!telegramUser) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
+    const rating = await this.reportService.getExpenseRating(user, { start, end, days });
+
+    if (rating.length === 0) {
+      this.dialogStateService.clear(userId);
+      await ctx.reply("Расходов за период нет.");
+      await this.replyWithMarkup(
+        ctx,
+        "Выберите действие:",
+        this.telegramService.getMainMenuKeyboard().reply_markup,
+      );
+      return;
+    }
+
+    const lines = rating.map((item, index) => {
+      const position = String(index + 1).padStart(2, "0");
+      return `${position}. ${item.category} — ${item.total.toFixed(2)}`;
+    });
+
+    const message = [
+      `Период: ${this.formatDate(start)} — ${this.formatDate(end)}`,
+      "Рейтинг расходов:",
+      ...lines,
+    ].join("\n");
+
+    this.dialogStateService.clear(userId);
+    await ctx.reply(message);
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
+    );
+  }
+
   private parseCustomDateRange(input: string): { start: Date; end: Date; days: number } | null {
     const parts = input.split(/\s+-\s+|\s+/).filter(Boolean);
     if (parts.length !== 2) {
@@ -632,6 +1051,20 @@ export class TelegramUpdate {
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${base} ${hours}:${minutes}`;
+  }
+
+  private buildStatsModeKeyboard() {
+    return Markup.inlineKeyboard([
+      [Markup.button.callback("Сводка", "stats_mode:summary")],
+      [Markup.button.callback("По категории", "stats_mode:category")],
+    ]);
+  }
+
+  private buildStatsTypeKeyboard() {
+    return Markup.inlineKeyboard([
+      [Markup.button.callback("Доход", "stats_type:income")],
+      [Markup.button.callback("Расход", "stats_type:expense")],
+    ]);
   }
 
   private async cancelDialog(ctx: BotContext, userId: string) {

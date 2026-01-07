@@ -15,6 +15,17 @@ export interface SummaryReport {
   days: number;
 }
 
+export interface ExpenseRatingItem {
+  category: string;
+  total: number;
+}
+
+export interface CategoryStats {
+  total: number;
+  count: number;
+  avgPerDay: number;
+}
+
 @Injectable()
 export class ReportService {
   constructor(
@@ -56,6 +67,56 @@ export class ReportService {
       avgIncomePerDay: income / days,
       avgExpensePerDay: expense / days,
       days,
+    };
+  }
+
+  async getExpenseRating(user: UserEntity, range: PeriodRange): Promise<ExpenseRatingItem[]> {
+    const rows = await this.operationRepository
+      .createQueryBuilder("operation")
+      .leftJoin("operation.category", "category")
+      .select("category.displayName", "category")
+      .addSelect("SUM(operation.amount)", "total")
+      .where("operation.userId = :userId", { userId: user.id })
+      .andWhere("operation.type = :expenseType", { expenseType: CategoryType.EXPENSE })
+      .andWhere("operation.createdAt BETWEEN :start AND :end", {
+        start: range.start,
+        end: range.end,
+      })
+      .groupBy("category.displayName")
+      .orderBy("total", "DESC")
+      .getRawMany<{ category: string | null; total: string | null }>();
+
+    return rows.map((row) => ({
+      category: row.category ?? "Без категории",
+      total: row.total ? Number(row.total) : 0,
+    }));
+  }
+
+  async getCategoryStats(
+    user: UserEntity,
+    categoryId: string,
+    range: PeriodRange,
+  ): Promise<CategoryStats> {
+    const row = await this.operationRepository
+      .createQueryBuilder("operation")
+      .select("SUM(operation.amount)", "total")
+      .addSelect("COUNT(operation.id)", "count")
+      .where("operation.userId = :userId", { userId: user.id })
+      .andWhere("operation.categoryId = :categoryId", { categoryId })
+      .andWhere("operation.createdAt BETWEEN :start AND :end", {
+        start: range.start,
+        end: range.end,
+      })
+      .getRawOne<{ total: string | null; count: string | null }>();
+
+    const total = row?.total ? Number(row.total) : 0;
+    const count = row?.count ? Number(row.count) : 0;
+    const days = range.days || 1;
+
+    return {
+      total,
+      count,
+      avgPerDay: total / days,
     };
   }
 }
