@@ -13,10 +13,20 @@ import { OperationService } from "../operation/operation.service";
 import { UserService } from "../user/user.service";
 import { buildExpenseCategoriesKeyboard } from "./keyboards/expense-categories.keyboard";
 import { buildIncomeCategoriesKeyboard } from "./keyboards/income-categories.keyboard";
+import { buildPeriodSelectKeyboard } from "./keyboards/period-select.keyboard";
 import { DialogStateService } from "./state/dialog-state.service";
+import { DialogState } from "./state/dialog-state.types";
 import { TelegramUser } from "./types/telegram-user";
 import { TelegramService } from "./telegram.service";
 import { MAIN_MENU_BUTTONS } from "./keyboards/main-menu.keyboard";
+import { ReportService } from "../report/report.service";
+import { PeriodType } from "../../common/types/period.type";
+import {
+  buildCurrentMonthRange,
+  buildCustomRange,
+  buildLast7DaysRange,
+  buildTodayRange,
+} from "../../common/utils/data-range.util";
 
 type BotContext = Context<TgUpdate>;
 
@@ -39,6 +49,7 @@ export class TelegramUpdate {
   private readonly dialogStateService: DialogStateService;
   private readonly categoryService: CategoryService;
   private readonly operationService: OperationService;
+  private readonly reportService: ReportService;
   private readonly userService: UserService;
 
   constructor(
@@ -47,6 +58,7 @@ export class TelegramUpdate {
     dialogStateService: DialogStateService,
     categoryService: CategoryService,
     operationService: OperationService,
+    reportService: ReportService,
     userService: UserService,
   ) {
     this.configService = configService;
@@ -54,6 +66,7 @@ export class TelegramUpdate {
     this.dialogStateService = dialogStateService;
     this.categoryService = categoryService;
     this.operationService = operationService;
+    this.reportService = reportService;
     this.userService = userService;
 
     const telegram = this.configService.get<{ allowedUserId?: number }>("telegram");
@@ -88,7 +101,11 @@ export class TelegramUpdate {
       return;
     }
 
-    this.dialogStateService.set(userId, { step: "amount", type: CategoryType.INCOME });
+    this.dialogStateService.set(userId, {
+      flow: "operation",
+      step: "amount",
+      type: CategoryType.INCOME,
+    });
     await ctx.reply("Введите сумму дохода.");
   }
 
@@ -105,8 +122,33 @@ export class TelegramUpdate {
       return;
     }
 
-    this.dialogStateService.set(userId, { step: "amount", type: CategoryType.EXPENSE });
+    this.dialogStateService.set(userId, {
+      flow: "operation",
+      step: "amount",
+      type: CategoryType.EXPENSE,
+    });
     await ctx.reply("Введите сумму расхода.");
+  }
+
+  @Command("stats")
+  async onStats(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    this.dialogStateService.set(userId, { flow: "stats", step: "stats_period" });
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите период для статистики:",
+      buildPeriodSelectKeyboard().reply_markup,
+    );
   }
 
   @Command("cancel")
@@ -157,10 +199,21 @@ export class TelegramUpdate {
       return;
     }
 
+    if (state.flow === "stats") {
+      await this.handleStatsText(ctx, userId, text, state.step);
+      return;
+    }
+
     if (state.step === "amount") {
       const amount = this.parseAmount(text);
       if (!amount) {
         await ctx.reply("Введите сумму числом. Пример: 1250 или 1250.50");
+        return;
+      }
+
+      if (!state.type) {
+        await ctx.reply("Не удалось определить тип операции.");
+        this.dialogStateService.clear(userId);
         return;
       }
 
@@ -178,6 +231,12 @@ export class TelegramUpdate {
       const comment = text === "-" ? null : text;
       if (!state.categoryCode || state.amount === undefined) {
         await ctx.reply("Сначала выберите категорию.");
+        return;
+      }
+
+      if (!state.type) {
+        await ctx.reply("Не удалось определить тип операции.");
+        this.dialogStateService.clear(userId);
         return;
       }
 
@@ -229,7 +288,7 @@ export class TelegramUpdate {
     }
 
     const state = this.dialogStateService.get(userId);
-    if (!state || state.step !== "category") {
+    if (!state || state.flow !== "operation" || state.step !== "category") {
       await ctx.answerCbQuery("Сначала введите сумму.");
       return;
     }
@@ -241,9 +300,51 @@ export class TelegramUpdate {
       return;
     }
 
+    if (!state.type) {
+      await ctx.answerCbQuery("Не удалось определить тип операции.");
+      this.dialogStateService.clear(userId);
+      return;
+    }
+
     this.dialogStateService.update(userId, { categoryCode, step: "comment" });
     await ctx.answerCbQuery();
     await ctx.reply("Введите комментарий или '-' без комментария.");
+  }
+
+  @Action(/stats_period:(.+)/)
+  async onStatsPeriodSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "stats") {
+      await ctx.answerCbQuery("Сначала выберите статистику.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const periodType = data?.split(":")[1] as PeriodType | undefined;
+    if (!periodType) {
+      await ctx.answerCbQuery("Не удалось определить период.");
+      return;
+    }
+
+    if (periodType === "custom") {
+      this.dialogStateService.update(userId, { step: "stats_custom_period" });
+      await ctx.answerCbQuery();
+      await ctx.reply("Введите период в формате YYYY-MM-DD YYYY-MM-DD.");
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await this.sendSummaryForPeriod(ctx, userId, periodType);
   }
 
   private async ensureAllowed(ctx: BotContext) {
@@ -296,7 +397,7 @@ export class TelegramUpdate {
         await this.onExpense(ctx);
         break;
       case MAIN_MENU_BUTTONS.stats:
-        await ctx.reply("Команда /stats пока не реализована.");
+        await this.onStats(ctx);
         break;
       case MAIN_MENU_BUTTONS.rating:
         await ctx.reply("Команда /rating пока не реализована.");
@@ -323,6 +424,116 @@ export class TelegramUpdate {
     replyMarkup: InlineKeyboardMarkup | ReplyKeyboardMarkup,
   ) {
     await ctx.reply(text, { reply_markup: replyMarkup });
+  }
+
+  private async handleStatsText(
+    ctx: BotContext,
+    userId: string,
+    text: string,
+    step: DialogState["step"],
+  ) {
+    if (step !== "stats_custom_period") {
+      await ctx.reply("Сначала выберите период.");
+      return;
+    }
+
+    const range = this.parseCustomDateRange(text);
+    if (!range) {
+      await ctx.reply("Неверный формат. Пример: 2025-01-01 2025-01-31");
+      return;
+    }
+
+    await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+  }
+
+  private async sendSummaryForPeriod(ctx: BotContext, userId: string, period: PeriodType) {
+    switch (period) {
+      case "today": {
+        const range = buildTodayRange();
+        await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      case "last7": {
+        const range = buildLast7DaysRange();
+        await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      case "month": {
+        const range = buildCurrentMonthRange();
+        await this.sendSummary(ctx, userId, range.start, range.end, range.days);
+        return;
+      }
+      default:
+        await ctx.reply("Не удалось определить период.");
+    }
+  }
+
+  private async sendSummary(ctx: BotContext, userId: string, start: Date, end: Date, days: number) {
+    const telegramUser = this.getTelegramUser(ctx);
+    if (!telegramUser) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
+    const summary = await this.reportService.getSummary(user, { start, end, days });
+
+    const message = [
+      `Период: ${this.formatDate(start)} — ${this.formatDate(end)}`,
+      `Доход: ${summary.income.toFixed(2)}`,
+      `Расход: ${summary.expense.toFixed(2)}`,
+      `Баланс: ${summary.balance.toFixed(2)}`,
+      `Средний доход в день: ${summary.avgIncomePerDay.toFixed(2)}`,
+      `Средний расход в день: ${summary.avgExpensePerDay.toFixed(2)}`,
+    ].join("\n");
+
+    this.dialogStateService.clear(userId);
+    await ctx.reply(message);
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
+    );
+  }
+
+  private parseCustomDateRange(input: string): { start: Date; end: Date; days: number } | null {
+    const parts = input.split(/\s+-\s+|\s+/).filter(Boolean);
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const start = this.parseDate(parts[0]);
+    const end = this.parseDate(parts[1]);
+    if (!start || !end || end < start) {
+      return null;
+    }
+
+    return buildCustomRange(start, end);
+  }
+
+  private parseDate(value: string): Date | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) {
+      return null;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return null;
+    }
+
+    return date;
+  }
+
+  private formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
   private async cancelDialog(ctx: BotContext, userId: string) {
