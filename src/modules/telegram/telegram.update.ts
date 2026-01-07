@@ -109,6 +109,22 @@ export class TelegramUpdate {
     await ctx.reply("Введите сумму расхода.");
   }
 
+  @Command("cancel")
+  async onCancel(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    await this.cancelDialog(ctx, userId);
+  }
+
   @On("text")
   async onText(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
@@ -128,6 +144,11 @@ export class TelegramUpdate {
 
     const text = ctx.message.text.trim();
     if (!text) {
+      return;
+    }
+
+    if (text === MAIN_MENU_BUTTONS.cancel) {
+      await this.cancelDialog(ctx, userId);
       return;
     }
 
@@ -283,6 +304,9 @@ export class TelegramUpdate {
       case MAIN_MENU_BUTTONS.last:
         await ctx.reply("Команда /last пока не реализована.");
         break;
+      case MAIN_MENU_BUTTONS.cancel:
+        await this.cancelDialog(ctx, this.getUserId(ctx) ?? "");
+        break;
       default:
         await ctx.reply("Не понял команду. Используйте меню кнопок.");
         await this.replyWithMarkup(
@@ -299,5 +323,26 @@ export class TelegramUpdate {
     replyMarkup: InlineKeyboardMarkup | ReplyKeyboardMarkup,
   ) {
     await ctx.reply(text, { reply_markup: replyMarkup });
+  }
+
+  private async cancelDialog(ctx: BotContext, userId: string) {
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (state) {
+      this.dialogStateService.clear(userId);
+      await ctx.reply("Операция отменена.");
+    } else {
+      await ctx.reply("Активной операции нет.");
+    }
+
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
+    );
   }
 }
