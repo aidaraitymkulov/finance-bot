@@ -32,6 +32,7 @@ import { UserEntity } from "../user/user.entity";
 type BotContext = Context<TgUpdate>;
 const LAST_PAGE_SIZE = 10;
 const STATS_CATEGORY_PREFIX = "stats_category";
+const CATEGORY_MANAGE_PREFIX = "category_manage_delete";
 
 const isTextMessage = (message?: Message): message is Message.TextMessage =>
   Boolean(message && "text" in message);
@@ -184,6 +185,7 @@ export class TelegramUpdate {
       "/expense — добавить расход",
       "/stats — сводка или статистика по категории",
       "/rating — рейтинг расходов по категориям",
+      "/categories — управление категориями",
       "/last — последние операции",
       "/cancel — отменить текущую операцию",
       "/help — эта справка",
@@ -194,6 +196,30 @@ export class TelegramUpdate {
       ctx,
       "Выберите действие:",
       this.telegramService.getMainMenuKeyboard().reply_markup,
+    );
+  }
+
+  @Command("categories")
+  async onCategories(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    this.dialogStateService.set(userId, {
+      flow: "category_manage",
+      step: "category_manage_action",
+    });
+    await this.replyWithMarkup(
+      ctx,
+      "Что сделать с категориями?",
+      this.buildCategoryManageKeyboard().reply_markup,
     );
   }
 
@@ -275,6 +301,11 @@ export class TelegramUpdate {
 
     if (state.flow === "rating") {
       await this.handleRatingText(ctx, userId, text, state.step);
+      return;
+    }
+
+    if (state.flow === "category_manage") {
+      await this.handleCategoryManageText(ctx, userId, text, state.step);
       return;
     }
 
@@ -628,6 +659,197 @@ export class TelegramUpdate {
     await this.sendRatingForPeriod(ctx, userId, periodType);
   }
 
+  @Action(/^category_manage:(add|delete)$/)
+  async onCategoryManageAction(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "category_manage" || state.step !== "category_manage_action") {
+      await ctx.answerCbQuery("Сначала выберите управление категориями.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const action = data?.split(":")[1];
+    if (!action) {
+      await ctx.answerCbQuery("Не удалось определить действие.");
+      return;
+    }
+
+    if (action === "add") {
+      this.dialogStateService.update(userId, { step: "category_manage_add_type" });
+      await ctx.answerCbQuery();
+      await this.replyWithMarkup(
+        ctx,
+        "Для какого типа добавить категорию?",
+        this.buildCategoryTypeKeyboard("category_manage_add_type").reply_markup,
+      );
+      return;
+    }
+
+    if (action === "delete") {
+      this.dialogStateService.update(userId, { step: "category_manage_delete_type" });
+      await ctx.answerCbQuery();
+      await this.replyWithMarkup(
+        ctx,
+        "Для какого типа удалить категорию?",
+        this.buildCategoryTypeKeyboard("category_manage_delete_type").reply_markup,
+      );
+      return;
+    }
+
+    await ctx.answerCbQuery("Не удалось определить действие.");
+  }
+
+  @Action(/^category_manage_add_type:(.+)$/)
+  async onCategoryManageAddType(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "category_manage" || state.step !== "category_manage_add_type") {
+      await ctx.answerCbQuery("Сначала выберите добавление категории.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
+      return;
+    }
+
+    const categoryType = type === "income" ? CategoryType.INCOME : CategoryType.EXPENSE;
+    this.dialogStateService.update(userId, {
+      step: "category_manage_name",
+      type: categoryType,
+    });
+
+    await ctx.answerCbQuery();
+    await ctx.reply("Введите название новой категории.");
+  }
+
+  @Action(/^category_manage_delete_type:(.+)$/)
+  async onCategoryManageDeleteType(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (
+      !state ||
+      state.flow !== "category_manage" ||
+      state.step !== "category_manage_delete_type"
+    ) {
+      await ctx.answerCbQuery("Сначала выберите удаление категории.");
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
+      return;
+    }
+
+    const categoryType = type === "income" ? CategoryType.INCOME : CategoryType.EXPENSE;
+    this.dialogStateService.update(userId, {
+      step: "category_manage_delete_select",
+      type: categoryType,
+    });
+
+    const categories = await this.categoryService.getCategoriesByType(categoryType);
+    if (categories.length === 0) {
+      await ctx.answerCbQuery();
+      await ctx.reply("Категорий для удаления нет.");
+      await this.finishCategoryManage(ctx, userId);
+      return;
+    }
+
+    const keyboard =
+      categoryType === CategoryType.INCOME
+        ? buildIncomeCategoriesKeyboard(categories, CATEGORY_MANAGE_PREFIX)
+        : buildExpenseCategoriesKeyboard(categories, CATEGORY_MANAGE_PREFIX);
+
+    await ctx.answerCbQuery();
+    await this.replyWithMarkup(ctx, "Выберите категорию для удаления:", keyboard.reply_markup);
+  }
+
+  @Action(/^category_manage_delete:(.+)$/)
+  async onCategoryManageDelete(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = this.getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (
+      !state ||
+      state.flow !== "category_manage" ||
+      state.step !== "category_manage_delete_select"
+    ) {
+      await ctx.answerCbQuery("Сначала выберите категорию.");
+      return;
+    }
+
+    if (!state.type) {
+      await ctx.answerCbQuery("Не удалось определить тип категории.");
+      this.dialogStateService.clear(userId);
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const categoryCode = data?.split(":")[1];
+    if (!categoryCode) {
+      await ctx.answerCbQuery("Не удалось определить категорию.");
+      return;
+    }
+
+    const result = await this.categoryService.deleteCategory(state.type, categoryCode);
+    await ctx.answerCbQuery();
+
+    if (!result.deleted) {
+      if (result.reason === "has_operations") {
+        await ctx.reply("Нельзя удалить категорию с операциями.");
+        await this.finishCategoryManage(ctx, userId);
+        return;
+      }
+
+      await ctx.reply("Категория не найдена.");
+      await this.finishCategoryManage(ctx, userId);
+      return;
+    }
+
+    await ctx.reply("Категория удалена.");
+    await this.finishCategoryManage(ctx, userId);
+  }
+
   @Action(/^last_more:(\d+)$/)
   async onLastMore(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
@@ -778,6 +1000,42 @@ export class TelegramUpdate {
     }
 
     await this.sendRating(ctx, userId, range.start, range.end, range.days);
+  }
+
+  private async handleCategoryManageText(
+    ctx: BotContext,
+    userId: string,
+    text: string,
+    step: DialogState["step"],
+  ) {
+    if (step !== "category_manage_name") {
+      await ctx.reply("Сначала выберите действие через кнопки.");
+      return;
+    }
+
+    const state = this.dialogStateService.get(userId);
+    if (!state?.type) {
+      await ctx.reply("Не удалось определить тип категории.");
+      this.dialogStateService.clear(userId);
+      return;
+    }
+
+    const result = await this.categoryService.createCategory(state.type, text);
+    if (!result.created) {
+      if (result.reason === "exists") {
+        await ctx.reply("Такая категория уже существует. Введите другое название.");
+        return;
+      }
+      if (result.reason === "name_too_long") {
+        await ctx.reply("Слишком длинное название. До 64 символов.");
+        return;
+      }
+      await ctx.reply("Название не может быть пустым. Введите другое.");
+      return;
+    }
+
+    await ctx.reply(`Категория добавлена: ${result.category?.displayName ?? "без названия"}.`);
+    await this.finishCategoryManage(ctx, userId);
   }
 
   private async sendSummaryForPeriod(ctx: BotContext, userId: string, period: PeriodType) {
@@ -1065,6 +1323,29 @@ export class TelegramUpdate {
       [Markup.button.callback("Доход", "stats_type:income")],
       [Markup.button.callback("Расход", "stats_type:expense")],
     ]);
+  }
+
+  private buildCategoryManageKeyboard() {
+    return Markup.inlineKeyboard([
+      [Markup.button.callback("Добавить", "category_manage:add")],
+      [Markup.button.callback("Удалить", "category_manage:delete")],
+    ]);
+  }
+
+  private buildCategoryTypeKeyboard(prefix: "category_manage_add_type" | "category_manage_delete_type") {
+    return Markup.inlineKeyboard([
+      [Markup.button.callback("Доход", `${prefix}:income`)],
+      [Markup.button.callback("Расход", `${prefix}:expense`)],
+    ]);
+  }
+
+  private async finishCategoryManage(ctx: BotContext, userId: string) {
+    this.dialogStateService.clear(userId);
+    await this.replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getMainMenuKeyboard().reply_markup,
+    );
   }
 
   private async cancelDialog(ctx: BotContext, userId: string) {
