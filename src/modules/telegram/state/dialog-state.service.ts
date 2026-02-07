@@ -13,12 +13,15 @@ export class DialogStateService {
     this.states.set(userId, state);
   }
 
-  update(userId: string, patch: Partial<DialogState>): DialogState | undefined {
+  update(
+    userId: string,
+    updater: (current: DialogState) => DialogState,
+  ): DialogState | undefined {
     const current = this.states.get(userId);
     if (!current) {
       return undefined;
     }
-    const next = { ...current, ...patch };
+    const next = updater(current);
     this.states.set(userId, next);
     return next;
   }
