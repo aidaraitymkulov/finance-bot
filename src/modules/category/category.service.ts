@@ -98,6 +98,39 @@ export class CategoryService implements OnModuleInit {
     return { deleted: true };
   }
 
+  async renameCategory(
+    type: CategoryType,
+    code: string,
+    displayName: string,
+  ): Promise<{ renamed: boolean; category?: CategoryEntity; reason?: string }> {
+    const category = await this.getByCode(type, code);
+    if (!category) {
+      return { renamed: false, reason: "not_found" };
+    }
+
+    const normalizedName = displayName.trim();
+    if (!normalizedName) {
+      return { renamed: false, reason: "empty_name" };
+    }
+
+    if (normalizedName.length > 64) {
+      return { renamed: false, reason: "name_too_long" };
+    }
+
+    if (category.displayName.toLowerCase() === normalizedName.toLowerCase()) {
+      return { renamed: false, reason: "same_name" };
+    }
+
+    const existingByName = await this.findByDisplayName(type, normalizedName);
+    if (existingByName && existingByName.id !== category.id) {
+      return { renamed: false, reason: "exists" };
+    }
+
+    category.displayName = normalizedName;
+    const saved = await this.categoryRepository.save(category);
+    return { renamed: true, category: saved };
+  }
+
   private async findByDisplayName(
     type: CategoryType,
     displayName: string,

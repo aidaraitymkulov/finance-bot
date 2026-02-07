@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
+import { buildCancelKeyboard } from "./keyboards/cancel.keyboard";
 import { buildMainMenuKeyboard } from "./keyboards/main-menu.keyboard";
+import { buildPausedKeyboard } from "./keyboards/paused.keyboard";
 
 @Injectable()
 export class TelegramService {
@@ -15,5 +17,13 @@ export class TelegramService {
 
   getMainMenuKeyboard() {
     return buildMainMenuKeyboard();
+  }
+
+  getCancelKeyboard() {
+    return buildCancelKeyboard();
+  }
+
+  getPausedKeyboard() {
+    return buildPausedKeyboard();
   }
 }

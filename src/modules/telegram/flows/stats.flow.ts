@@ -38,6 +38,11 @@ export class StatsFlow {
 
   async start(ctx: BotContext, userId: string) {
     this.dialogStateService.set(userId, { flow: "stats", step: "stats_mode" });
+    await replyWithMarkup(
+      ctx,
+      "Режим статистики запущен. Для выхода используйте ❌ Отмена.",
+      this.telegramService.getCancelKeyboard().reply_markup,
+    );
     await replyWithMarkup(ctx, "Что показать?", this.buildStatsModeKeyboard().reply_markup);
   }
 

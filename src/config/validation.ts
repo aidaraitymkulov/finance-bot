@@ -1,5 +1,5 @@
 import { plainToInstance } from "class-transformer";
-import { IsEnum, IsNumber, IsString } from "class-validator";
+import { IsBoolean, IsEnum, IsNumber, IsString } from "class-validator";
 
 enum NodeEnv {
   Development = "development",
@@ -25,6 +25,9 @@ class EnvVariables {
 
   @IsString()
   DB_NAME: string;
+
+  @IsBoolean()
+  DB_SYNCHRONIZE: boolean;
 
   @IsString()
   TELEGRAM_BOT_TOKEN: string;

@@ -5,11 +5,13 @@ import { CategoryType } from "../category/category-type.enum";
 import { PeriodType } from "../../common/types/period.type";
 import { MAIN_MENU_BUTTONS } from "./keyboards/main-menu.keyboard";
 import { DialogStateService } from "./state/dialog-state.service";
+import { BotPauseService } from "./state/bot-pause.service";
 import { HelpFlow } from "./flows/help.flow";
 import { LastFlow } from "./flows/last.flow";
 import { OperationFlow } from "./flows/operation.flow";
 import { RatingFlow } from "./flows/rating.flow";
 import { StatsFlow } from "./flows/stats.flow";
+import { CategoryManageFlow } from "./flows/category-manage.flow";
 import { TelegramService } from "./telegram.service";
 import {
   BotContext,
@@ -26,30 +28,36 @@ export class TelegramUpdate {
   private readonly configService: ConfigService;
   private readonly telegramService: TelegramService;
   private readonly dialogStateService: DialogStateService;
+  private readonly botPauseService: BotPauseService;
   private readonly operationFlow: OperationFlow;
   private readonly statsFlow: StatsFlow;
   private readonly ratingFlow: RatingFlow;
   private readonly lastFlow: LastFlow;
   private readonly helpFlow: HelpFlow;
+  private readonly categoryManageFlow: CategoryManageFlow;
 
   constructor(
     configService: ConfigService,
     telegramService: TelegramService,
     dialogStateService: DialogStateService,
+    botPauseService: BotPauseService,
     operationFlow: OperationFlow,
     statsFlow: StatsFlow,
     ratingFlow: RatingFlow,
     lastFlow: LastFlow,
     helpFlow: HelpFlow,
+    categoryManageFlow: CategoryManageFlow,
   ) {
     this.configService = configService;
     this.telegramService = telegramService;
     this.dialogStateService = dialogStateService;
+    this.botPauseService = botPauseService;
     this.operationFlow = operationFlow;
     this.statsFlow = statsFlow;
     this.ratingFlow = ratingFlow;
     this.lastFlow = lastFlow;
     this.helpFlow = helpFlow;
+    this.categoryManageFlow = categoryManageFlow;
 
     const telegram = this.configService.get<{ allowedUserId?: number }>("telegram");
     this.allowedUserId = telegram?.allowedUserId;
@@ -58,9 +66,15 @@ export class TelegramUpdate {
 
   @Start()
   async onStart(@Ctx() ctx: BotContext) {
-    const isAllowed = await this.ensureAllowed(ctx);
+    const isAllowed = await this.ensureAllowed(ctx, true);
     if (!isAllowed) {
       return;
+    }
+
+    const userId = getUserId(ctx);
+    if (userId) {
+      this.botPauseService.resume(userId);
+      this.dialogStateService.clear(userId);
     }
 
     await ctx.reply(this.telegramService.getStartMessage());
@@ -140,6 +154,22 @@ export class TelegramUpdate {
       return;
     }
 
+    const userId = getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    await this.categoryManageFlow.start(ctx, userId);
+  }
+
+  @Command("last")
+  async onLast(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
     await this.lastFlow.start(ctx);
   }
 
@@ -157,6 +187,41 @@ export class TelegramUpdate {
     }
 
     await this.cancelDialog(ctx, userId);
+  }
+
+  @Command("disable")
+  async onDisable(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    this.dialogStateService.clear(userId);
+    this.botPauseService.pause(userId);
+
+    try {
+      await ctx.deleteMessage();
+    } catch {
+      // ignore if Telegram does not allow deleting this message
+    }
+
+    await ctx.reply(
+      "Бот отключен для этого чата. Нажмите /start на кнопке ниже для возобновления.",
+      {
+        reply_markup: this.telegramService.getPausedKeyboard().reply_markup,
+      },
+    );
+  }
+
+  @Command("clear")
+  async onClear(@Ctx() ctx: BotContext) {
+    await this.onDisable(ctx);
   }
 
   @On("text")
@@ -201,6 +266,20 @@ export class TelegramUpdate {
       return;
     }
 
+    if (state.flow === "category_manage") {
+      if (state.step === "category_manage_add_name") {
+        await this.categoryManageFlow.handleAddNameText(ctx, userId, text);
+        return;
+      }
+      if (state.step === "category_manage_edit_name") {
+        await this.categoryManageFlow.handleEditNameText(ctx, userId, text);
+        return;
+      }
+
+      await ctx.reply("Выберите действие через кнопки.");
+      return;
+    }
+
     await this.operationFlow.handleText(ctx, userId, text, state);
   }
 
@@ -216,6 +295,13 @@ export class TelegramUpdate {
       return;
     }
 
+    const data = getCallbackData(ctx);
+    const mode = data?.split(":")[1];
+    if (!mode) {
+      await ctx.answerCbQuery("Не удалось определить режим.");
+      return;
+    }
+
     await this.statsFlow.handleModeSelected(ctx, userId, mode);
   }
 
@@ -226,11 +312,45 @@ export class TelegramUpdate {
       return;
     }
 
-    await this.operationFlow.handleCategorySelected(ctx, userId, categoryCode);
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
+      return;
+    }
+
+    await this.statsFlow.handleTypeSelected(ctx, userId, type);
   }
 
   @Action(/^stats_category:(.+)$/)
   async onStatsCategorySelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const categoryCode = data?.split(":")[1];
+    if (!categoryCode) {
+      await ctx.answerCbQuery("Не удалось определить категорию.");
+      return;
+    }
+
+    await this.statsFlow.handleCategorySelected(ctx, userId, categoryCode);
+  }
+
+  @Action(/^stats_period:(.+)$/)
+  async onStatsPeriodSelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -251,7 +371,29 @@ export class TelegramUpdate {
     await this.statsFlow.handlePeriodSelected(ctx, userId, periodType);
   }
 
-  @Action(/^category_manage:(add|delete)$/)
+  @Action(/^stats_category_period:(.+)$/)
+  async onStatsCategoryPeriodSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const periodType = data?.split(":")[1] as PeriodType | undefined;
+    if (!periodType) {
+      await ctx.answerCbQuery("Не удалось определить период.");
+      return;
+    }
+
+    await this.statsFlow.handleCategoryPeriodSelected(ctx, userId, periodType);
+  }
+
+  @Action(/^category_manage:(add|edit|delete|view)$/)
   async onCategoryManageAction(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
@@ -270,7 +412,7 @@ export class TelegramUpdate {
       return;
     }
 
-    await this.statsFlow.handleModeSelected(ctx, userId, mode);
+    await this.categoryManageFlow.handleActionSelected(ctx, userId, action);
   }
 
   @Action(/^category_manage_add_type:(.+)$/)
@@ -292,7 +434,7 @@ export class TelegramUpdate {
       return;
     }
 
-    await this.statsFlow.handleTypeSelected(ctx, userId, type);
+    await this.categoryManageFlow.handleAddTypeSelected(ctx, userId, type);
   }
 
   @Action(/^category_manage_delete_type:(.+)$/)
@@ -314,7 +456,29 @@ export class TelegramUpdate {
       return;
     }
 
-    await this.statsFlow.handleCategorySelected(ctx, userId, categoryCode);
+    await this.categoryManageFlow.handleDeleteTypeSelected(ctx, userId, type);
+  }
+
+  @Action(/^category_manage_edit_type:(.+)$/)
+  async onCategoryManageEditType(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
+      return;
+    }
+
+    await this.categoryManageFlow.handleEditTypeSelected(ctx, userId, type);
   }
 
   @Action(/^category_manage_delete:(.+)$/)
@@ -329,13 +493,36 @@ export class TelegramUpdate {
       return;
     }
 
-    if (!state.type) {
-      await ctx.answerCbQuery("Не удалось определить тип категории.");
-      this.dialogStateService.clear(userId);
+    const data = getCallbackData(ctx);
+    const categoryCode = data?.split(":")[1];
+    if (!categoryCode) {
+      await ctx.answerCbQuery("Не удалось определить категорию.");
       return;
     }
 
-    await this.statsFlow.handleCategoryPeriodSelected(ctx, userId, periodType);
+    await this.categoryManageFlow.handleDeleteSelected(ctx, userId, categoryCode);
+  }
+
+  @Action(/^category_manage_edit:(.+)$/)
+  async onCategoryManageEdit(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const categoryCode = data?.split(":")[1];
+    if (!categoryCode) {
+      await ctx.answerCbQuery("Не удалось определить категорию.");
+      return;
+    }
+
+    await this.categoryManageFlow.handleEditSelected(ctx, userId, categoryCode);
   }
 
   @Action(/^rating_period:(.+)$/)
@@ -378,18 +565,33 @@ export class TelegramUpdate {
     await this.lastFlow.handleMore(ctx, offset);
   }
 
-  private async ensureAllowed(ctx: BotContext) {
+  private async ensureAllowed(ctx: BotContext, ignorePause = false) {
+    const userId = getUserId(ctx);
+
     if (!this.allowedUserId) {
+      if (!ignorePause && userId && this.botPauseService.isPaused(userId)) {
+        await ctx.reply("Бот отключен. Нажмите /start на кнопке ниже.", {
+          reply_markup: this.telegramService.getPausedKeyboard().reply_markup,
+        });
+        return false;
+      }
       return true;
     }
 
     const fromId = ctx.from?.id;
-    if (fromId === this.allowedUserId) {
-      return true;
+    if (fromId !== this.allowedUserId) {
+      await ctx.reply("Доступ запрещен.");
+      return false;
     }
 
-    await ctx.reply("Доступ запрещен.");
-    return false;
+    if (!ignorePause && userId && this.botPauseService.isPaused(userId)) {
+      await ctx.reply("Бот отключен. Нажмите /start на кнопке ниже.", {
+        reply_markup: this.telegramService.getPausedKeyboard().reply_markup,
+      });
+      return false;
+    }
+
+    return true;
   }
 
   private async handleMenuText(ctx: BotContext, text: string) {
@@ -406,11 +608,17 @@ export class TelegramUpdate {
       case MAIN_MENU_BUTTONS.rating:
         await this.onRating(ctx);
         break;
+      case MAIN_MENU_BUTTONS.categories:
+        await this.onCategories(ctx);
+        break;
       case MAIN_MENU_BUTTONS.last:
         await this.onLast(ctx);
         break;
       case MAIN_MENU_BUTTONS.help:
         await this.onHelp(ctx);
+        break;
+      case MAIN_MENU_BUTTONS.disable:
+        await this.onDisable(ctx);
         break;
       case MAIN_MENU_BUTTONS.cancel:
         await this.cancelDialog(ctx, getUserId(ctx) ?? "");

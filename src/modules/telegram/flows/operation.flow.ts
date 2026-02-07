@@ -35,7 +35,11 @@ export class OperationFlow {
       step: "amount",
       type,
     });
-    await ctx.reply(type === CategoryType.INCOME ? "Введите сумму дохода." : "Введите сумму расхода.");
+    await replyWithMarkup(
+      ctx,
+      type === CategoryType.INCOME ? "Введите сумму дохода." : "Введите сумму расхода.",
+      this.telegramService.getCancelKeyboard().reply_markup,
+    );
   }
 
   async handleText(ctx: BotContext, userId: string, text: string, state: OperationDialogState) {

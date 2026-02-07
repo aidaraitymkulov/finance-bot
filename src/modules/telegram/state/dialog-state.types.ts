@@ -25,4 +25,23 @@ export type RatingDialogState =
   | { flow: "rating"; step: "rating_period" }
   | { flow: "rating"; step: "rating_custom_period" };
 
-export type DialogState = OperationDialogState | StatsDialogState | RatingDialogState;
+export type CategoryManageDialogState =
+  | { flow: "category_manage"; step: "category_manage_action" }
+  | { flow: "category_manage"; step: "category_manage_add_type" }
+  | { flow: "category_manage"; step: "category_manage_add_name"; type: CategoryType }
+  | { flow: "category_manage"; step: "category_manage_edit_type" }
+  | { flow: "category_manage"; step: "category_manage_edit_select"; type: CategoryType }
+  | {
+      flow: "category_manage";
+      step: "category_manage_edit_name";
+      type: CategoryType;
+      categoryCode: string;
+    }
+  | { flow: "category_manage"; step: "category_manage_delete_type" }
+  | { flow: "category_manage"; step: "category_manage_delete_select"; type: CategoryType };
+
+export type DialogState =
+  | OperationDialogState
+  | StatsDialogState
+  | RatingDialogState
+  | CategoryManageDialogState;

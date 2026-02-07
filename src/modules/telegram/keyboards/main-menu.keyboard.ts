@@ -5,7 +5,9 @@ export const MAIN_MENU_BUTTONS = {
   expense: "💸 Расход",
   stats: "📊 Статистика",
   rating: "🏆 Рейтинг",
+  categories: "🗂 Категории",
   last: "🧾 Последние",
+  disable: "⏸ Отключить",
   cancel: "❌ Отмена",
   help: "❓ Помощь",
 } as const;
@@ -15,5 +17,5 @@ export const buildMainMenuKeyboard = () =>
     [MAIN_MENU_BUTTONS.income, MAIN_MENU_BUTTONS.expense],
     [MAIN_MENU_BUTTONS.stats, MAIN_MENU_BUTTONS.rating],
     [MAIN_MENU_BUTTONS.categories, MAIN_MENU_BUTTONS.last],
-    [MAIN_MENU_BUTTONS.cancel, MAIN_MENU_BUTTONS.help],
+    [MAIN_MENU_BUTTONS.disable, MAIN_MENU_BUTTONS.help],
   ]).resize();

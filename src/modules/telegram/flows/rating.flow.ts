@@ -28,6 +28,11 @@ export class RatingFlow {
     this.dialogStateService.set(userId, { flow: "rating", step: "rating_period" });
     await replyWithMarkup(
       ctx,
+      "Режим рейтинга запущен. Для выхода используйте ❌ Отмена.",
+      this.telegramService.getCancelKeyboard().reply_markup,
+    );
+    await replyWithMarkup(
+      ctx,
       "Выберите период для рейтинга расходов:",
       buildPeriodSelectKeyboard("rating").reply_markup,
     );
