@@ -8,6 +8,11 @@ import { UserModule } from "../user/user.module";
 import { CategoryModule } from "../category/category.module";
 import { OperationModule } from "../operation/operation.module";
 import { ReportModule } from "../report/report.module";
+import { OperationFlow } from "./flows/operation.flow";
+import { StatsFlow } from "./flows/stats.flow";
+import { RatingFlow } from "./flows/rating.flow";
+import { LastFlow } from "./flows/last.flow";
+import { HelpFlow } from "./flows/help.flow";
 
 @Module({
   imports: [
@@ -38,6 +43,15 @@ import { ReportModule } from "../report/report.module";
       },
     }),
   ],
-  providers: [DialogStateService, TelegramUpdate, TelegramService],
+  providers: [
+    DialogStateService,
+    TelegramUpdate,
+    TelegramService,
+    OperationFlow,
+    StatsFlow,
+    RatingFlow,
+    LastFlow,
+    HelpFlow,
+  ],
 })
 export class TelegramModule {}

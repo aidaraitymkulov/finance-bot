@@ -1,13 +1,13 @@
 import { Markup } from "telegraf";
 
 export const MAIN_MENU_BUTTONS = {
-  income: "Доход",
-  expense: "Расход",
-  stats: "Статистика",
-  rating: "Рейтинг",
-  last: "Последние",
-  cancel: "Отмена",
-  help: "Помощь",
+  income: "💰 Доход",
+  expense: "💸 Расход",
+  stats: "📊 Статистика",
+  rating: "🏆 Рейтинг",
+  last: "🧾 Последние",
+  cancel: "❌ Отмена",
+  help: "❓ Помощь",
 } as const;
 
 export const buildMainMenuKeyboard = () =>

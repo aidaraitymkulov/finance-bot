@@ -1,10 +1,10 @@
 import { Markup } from "telegraf";
 
 const PERIOD_OPTIONS = [
-  { key: "today", label: "Сегодня" },
-  { key: "last7", label: "Последние 7 дней" },
-  { key: "month", label: "Текущий месяц" },
-  { key: "custom", label: "Произвольный период" },
+  { key: "today", label: "📅 Сегодня" },
+  { key: "last7", label: "🗓️ Последние 7 дней" },
+  { key: "month", label: "📆 Текущий месяц" },
+  { key: "custom", label: "✏️ Произвольный период" },
 ] as const;
 
 type PeriodPrefix = "stats" | "rating" | "stats_category";

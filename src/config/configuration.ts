@@ -1,5 +1,11 @@
 export const Configuration = () => ({
   nodeEnv: process.env.NODE_ENV ?? "development",
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN,
+    allowedUserId: process.env.ALLOWED_TELEGRAM_USER_ID
+      ? Number(process.env.ALLOWED_TELEGRAM_USER_ID)
+      : undefined,
+  },
   database: {
     host: process.env.DB_HOST,
     port: parseInt(process.env.DB_PORT ?? "5432", 10),
