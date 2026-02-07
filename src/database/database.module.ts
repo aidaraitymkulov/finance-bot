@@ -13,6 +13,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
           user: string;
           password: string;
           name: string;
+          synchronize?: boolean;
         }>("database");
 
         if (!db) {
@@ -27,8 +28,8 @@ import { TypeOrmModule } from "@nestjs/typeorm";
           password: db.password,
           database: db.name,
           autoLoadEntities: true,
-          synchronize: true,
-          logging: true,
+          synchronize: db.synchronize ?? false,
+          logging: false,
         };
       },
     }),

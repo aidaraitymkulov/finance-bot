@@ -4,10 +4,17 @@ import { TelegrafModule } from "nestjs-telegraf";
 import { TelegramService } from "./telegram.service";
 import { TelegramUpdate } from "./telegram.update";
 import { DialogStateService } from "./state/dialog-state.service";
+import { BotPauseService } from "./state/bot-pause.service";
 import { UserModule } from "../user/user.module";
 import { CategoryModule } from "../category/category.module";
 import { OperationModule } from "../operation/operation.module";
 import { ReportModule } from "../report/report.module";
+import { OperationFlow } from "./flows/operation.flow";
+import { StatsFlow } from "./flows/stats.flow";
+import { RatingFlow } from "./flows/rating.flow";
+import { LastFlow } from "./flows/last.flow";
+import { HelpFlow } from "./flows/help.flow";
+import { CategoryManageFlow } from "./flows/category-manage.flow";
 
 @Module({
   imports: [
@@ -38,6 +45,17 @@ import { ReportModule } from "../report/report.module";
       },
     }),
   ],
-  providers: [DialogStateService, TelegramUpdate, TelegramService],
+  providers: [
+    DialogStateService,
+    BotPauseService,
+    TelegramUpdate,
+    TelegramService,
+    OperationFlow,
+    StatsFlow,
+    RatingFlow,
+    LastFlow,
+    HelpFlow,
+    CategoryManageFlow,
+  ],
 })
 export class TelegramModule {}
