@@ -23,6 +23,7 @@ npm run start:dev
 
 ```bash
 npm run build
+npm run migration:run
 npm run start:prod
 ```
 
@@ -80,6 +81,21 @@ DB_NAME=tg-bot
 DB_SYNCHRONIZE=false
 TELEGRAM_BOT_TOKEN=your_token
 ALLOWED_TELEGRAM_USER_ID=123456789
+```
+
+## Миграции
+
+После отключения `DB_SYNCHRONIZE` схему нужно применять миграциями:
+
+```bash
+npm run migration:show
+npm run migration:run
+```
+
+Откат последней миграции:
+
+```bash
+npm run migration:revert
 ```
 
 ---
