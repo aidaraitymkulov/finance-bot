@@ -66,9 +66,11 @@ export class LastFlow {
     const lines = items.map((operation) => {
       const date = formatDateTime(operation.createdAt);
       const typeLabel = formatOperationTypeLabel(operation.type ?? CategoryType.EXPENSE);
-      return `${date} • ${typeLabel} • ${operation.category.displayName} • ${operation.amount.toFixed(
+      const baseLine = `${date} • ${typeLabel} • ${operation.category.displayName} • ${operation.amount.toFixed(
         2,
       )}`;
+      const comment = operation.comment?.trim();
+      return comment ? `${baseLine}\n💬 ${comment}` : baseLine;
     });
 
     const message = ["Последние операции:", ...lines].join("\n");
