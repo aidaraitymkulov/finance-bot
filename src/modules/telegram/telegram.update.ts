@@ -133,8 +133,8 @@ export class TelegramUpdate {
     await this.helpFlow.sendHelp(ctx);
   }
 
-  @Command("last")
-  async onLast(@Ctx() ctx: BotContext) {
+  @Command("categories")
+  async onCategories(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -204,8 +204,8 @@ export class TelegramUpdate {
     await this.operationFlow.handleText(ctx, userId, text, state);
   }
 
-  @Action(/^category:(.+)$/)
-  async onCategorySelected(@Ctx() ctx: BotContext) {
+  @Action(/^stats_mode:(.+)$/)
+  async onStatsModeSelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -216,18 +216,21 @@ export class TelegramUpdate {
       return;
     }
 
-    const data = getCallbackData(ctx);
-    const categoryCode = data?.split(":")[1];
-    if (!categoryCode) {
-      await ctx.answerCbQuery("Не удалось определить категорию.");
+    await this.statsFlow.handleModeSelected(ctx, userId, mode);
+  }
+
+  @Action(/^stats_type:(.+)$/)
+  async onStatsTypeSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
       return;
     }
 
     await this.operationFlow.handleCategorySelected(ctx, userId, categoryCode);
   }
 
-  @Action(/^stats_period:(.+)$/)
-  async onStatsPeriodSelected(@Ctx() ctx: BotContext) {
+  @Action(/^stats_category:(.+)$/)
+  async onStatsCategorySelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -248,8 +251,8 @@ export class TelegramUpdate {
     await this.statsFlow.handlePeriodSelected(ctx, userId, periodType);
   }
 
-  @Action(/^stats_mode:(.+)$/)
-  async onStatsModeSelected(@Ctx() ctx: BotContext) {
+  @Action(/^category_manage:(add|delete)$/)
+  async onCategoryManageAction(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -261,17 +264,17 @@ export class TelegramUpdate {
     }
 
     const data = getCallbackData(ctx);
-    const mode = data?.split(":")[1];
-    if (!mode) {
-      await ctx.answerCbQuery("Не удалось определить режим.");
+    const action = data?.split(":")[1];
+    if (!action) {
+      await ctx.answerCbQuery("Не удалось определить действие.");
       return;
     }
 
     await this.statsFlow.handleModeSelected(ctx, userId, mode);
   }
 
-  @Action(/^stats_type:(.+)$/)
-  async onStatsTypeSelected(@Ctx() ctx: BotContext) {
+  @Action(/^category_manage_add_type:(.+)$/)
+  async onCategoryManageAddType(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -292,8 +295,8 @@ export class TelegramUpdate {
     await this.statsFlow.handleTypeSelected(ctx, userId, type);
   }
 
-  @Action(/^stats_category:(.+)$/)
-  async onStatsCategorySelected(@Ctx() ctx: BotContext) {
+  @Action(/^category_manage_delete_type:(.+)$/)
+  async onCategoryManageDeleteType(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -305,17 +308,17 @@ export class TelegramUpdate {
     }
 
     const data = getCallbackData(ctx);
-    const categoryCode = data?.split(":")[1];
-    if (!categoryCode) {
-      await ctx.answerCbQuery("Не удалось определить категорию.");
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
       return;
     }
 
     await this.statsFlow.handleCategorySelected(ctx, userId, categoryCode);
   }
 
-  @Action(/^stats_category_period:(.+)$/)
-  async onStatsCategoryPeriodSelected(@Ctx() ctx: BotContext) {
+  @Action(/^category_manage_delete:(.+)$/)
+  async onCategoryManageDelete(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
     if (!isAllowed) {
       return;
@@ -326,10 +329,9 @@ export class TelegramUpdate {
       return;
     }
 
-    const data = getCallbackData(ctx);
-    const periodType = data?.split(":")[1] as PeriodType | undefined;
-    if (!periodType) {
-      await ctx.answerCbQuery("Не удалось определить период.");
+    if (!state.type) {
+      await ctx.answerCbQuery("Не удалось определить тип категории.");
+      this.dialogStateService.clear(userId);
       return;
     }
 

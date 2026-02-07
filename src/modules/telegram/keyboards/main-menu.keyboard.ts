@@ -14,6 +14,6 @@ export const buildMainMenuKeyboard = () =>
   Markup.keyboard([
     [MAIN_MENU_BUTTONS.income, MAIN_MENU_BUTTONS.expense],
     [MAIN_MENU_BUTTONS.stats, MAIN_MENU_BUTTONS.rating],
-    [MAIN_MENU_BUTTONS.last, MAIN_MENU_BUTTONS.cancel],
-    [MAIN_MENU_BUTTONS.help],
+    [MAIN_MENU_BUTTONS.categories, MAIN_MENU_BUTTONS.last],
+    [MAIN_MENU_BUTTONS.cancel, MAIN_MENU_BUTTONS.help],
   ]).resize();

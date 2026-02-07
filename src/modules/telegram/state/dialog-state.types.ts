@@ -1,6 +1,6 @@
 import { CategoryType } from "../../category/category-type.enum";
 
-export type DialogFlow = "operation" | "stats" | "rating";
+export type DialogFlow = "operation" | "stats" | "rating" | "category_manage";
 
 export type OperationDialogState =
   | { flow: "operation"; step: "amount"; type: CategoryType }
