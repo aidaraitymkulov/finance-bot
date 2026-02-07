@@ -305,6 +305,28 @@ export class TelegramUpdate {
     await this.statsFlow.handleModeSelected(ctx, userId, mode);
   }
 
+  @Action(/^category:(.+)$/)
+  async onOperationCategorySelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const categoryCode = data?.split(":")[1];
+    if (!categoryCode) {
+      await ctx.answerCbQuery("Не удалось определить категорию.");
+      return;
+    }
+
+    await this.operationFlow.handleCategorySelected(ctx, userId, categoryCode);
+  }
+
   @Action(/^stats_type:(.+)$/)
   async onStatsTypeSelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
@@ -570,6 +592,7 @@ export class TelegramUpdate {
 
     if (!this.allowedUserId) {
       if (!ignorePause && userId && this.botPauseService.isPaused(userId)) {
+        await this.answerCallbackIfNeeded(ctx, "Бот отключен. Нажмите /start.");
         await ctx.reply("Бот отключен. Нажмите /start на кнопке ниже.", {
           reply_markup: this.telegramService.getPausedKeyboard().reply_markup,
         });
@@ -580,11 +603,13 @@ export class TelegramUpdate {
 
     const fromId = ctx.from?.id;
     if (fromId !== this.allowedUserId) {
+      await this.answerCallbackIfNeeded(ctx, "Доступ запрещен.");
       await ctx.reply("Доступ запрещен.");
       return false;
     }
 
     if (!ignorePause && userId && this.botPauseService.isPaused(userId)) {
+      await this.answerCallbackIfNeeded(ctx, "Бот отключен. Нажмите /start.");
       await ctx.reply("Бот отключен. Нажмите /start на кнопке ниже.", {
         reply_markup: this.telegramService.getPausedKeyboard().reply_markup,
       });
@@ -592,6 +617,18 @@ export class TelegramUpdate {
     }
 
     return true;
+  }
+
+  private async answerCallbackIfNeeded(ctx: BotContext, text?: string) {
+    if (!ctx.callbackQuery) {
+      return;
+    }
+
+    try {
+      await ctx.answerCbQuery(text);
+    } catch {
+      // ignore callback answer errors
+    }
   }
 
   private async handleMenuText(ctx: BotContext, text: string) {
