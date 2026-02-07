@@ -92,10 +92,26 @@ npm run migration:show
 npm run migration:run
 ```
 
+Явные команды по окружениям:
+
+```bash
+# development
+npm run migration:show:dev
+npm run migration:run:dev
+
+# production
+npm run migration:show:prod
+npm run migration:run:prod
+```
+
 Откат последней миграции:
 
 ```bash
 npm run migration:revert
+
+# или явно:
+npm run migration:revert:dev
+npm run migration:revert:prod
 ```
 
 ---
