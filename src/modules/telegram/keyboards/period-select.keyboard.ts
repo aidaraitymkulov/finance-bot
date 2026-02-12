@@ -7,7 +7,7 @@ const PERIOD_OPTIONS = [
   { key: "custom", label: "✏️ Произвольный период" },
 ] as const;
 
-type PeriodPrefix = "stats" | "rating" | "stats_category";
+type PeriodPrefix = "stats" | "rating" | "stats_category" | "excel";
 
 export const buildPeriodSelectKeyboard = (prefix: PeriodPrefix = "stats") =>
   Markup.inlineKeyboard(

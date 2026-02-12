@@ -26,6 +26,14 @@ export interface CategoryStats {
   avgPerDay: number;
 }
 
+export interface OperationForExport {
+  date: Date;
+  category: string;
+  amount: number;
+  comment: string | null;
+  type: CategoryType;
+}
+
 @Injectable()
 export class ReportService {
   constructor(
@@ -118,5 +126,29 @@ export class ReportService {
       count,
       avgPerDay: total / days,
     };
+  }
+
+  async getOperationsForExport(user: UserEntity, range: PeriodRange): Promise<OperationForExport[]> {
+    const operations = await this.operationRepository.find({
+      where: {
+        user: { id: user.id },
+      },
+      relations: {
+        category: true,
+      },
+      order: {
+        createdAt: "ASC",
+      },
+    });
+
+    return operations
+      .filter((op) => op.createdAt >= range.start && op.createdAt <= range.end)
+      .map((op) => ({
+        date: op.createdAt,
+        category: op.category.displayName,
+        amount: op.amount,
+        comment: op.comment,
+        type: op.type,
+      }));
   }
 }
