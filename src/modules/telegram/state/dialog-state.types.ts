@@ -1,6 +1,6 @@
 import { CategoryType } from "../../category/category-type.enum";
 
-export type DialogFlow = "operation" | "stats" | "rating" | "category_manage";
+export type DialogFlow = "operation" | "stats" | "rating" | "category_manage" | "excel";
 
 export type OperationDialogState =
   | { flow: "operation"; step: "amount"; type: CategoryType }
@@ -40,8 +40,13 @@ export type CategoryManageDialogState =
   | { flow: "category_manage"; step: "category_manage_delete_type" }
   | { flow: "category_manage"; step: "category_manage_delete_select"; type: CategoryType };
 
+export type ExcelDialogState =
+  | { flow: "excel"; step: "excel_period" }
+  | { flow: "excel"; step: "excel_custom_period" };
+
 export type DialogState =
   | OperationDialogState
   | StatsDialogState
   | RatingDialogState
-  | CategoryManageDialogState;
+  | CategoryManageDialogState
+  | ExcelDialogState;

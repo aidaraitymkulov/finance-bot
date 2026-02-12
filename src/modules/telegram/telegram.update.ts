@@ -12,6 +12,7 @@ import { OperationFlow } from "./flows/operation.flow";
 import { RatingFlow } from "./flows/rating.flow";
 import { StatsFlow } from "./flows/stats.flow";
 import { CategoryManageFlow } from "./flows/category-manage.flow";
+import { ExcelFlow } from "./flows/excel.flow";
 import { TelegramService } from "./telegram.service";
 import {
   BotContext,
@@ -35,6 +36,7 @@ export class TelegramUpdate {
   private readonly lastFlow: LastFlow;
   private readonly helpFlow: HelpFlow;
   private readonly categoryManageFlow: CategoryManageFlow;
+  private readonly excelFlow: ExcelFlow;
 
   constructor(
     configService: ConfigService,
@@ -47,6 +49,7 @@ export class TelegramUpdate {
     lastFlow: LastFlow,
     helpFlow: HelpFlow,
     categoryManageFlow: CategoryManageFlow,
+    excelFlow: ExcelFlow,
   ) {
     this.configService = configService;
     this.telegramService = telegramService;
@@ -58,6 +61,7 @@ export class TelegramUpdate {
     this.lastFlow = lastFlow;
     this.helpFlow = helpFlow;
     this.categoryManageFlow = categoryManageFlow;
+    this.excelFlow = excelFlow;
 
     const telegram = this.configService.get<{ allowedUserId?: number }>("telegram");
     this.allowedUserId = telegram?.allowedUserId;
@@ -173,6 +177,22 @@ export class TelegramUpdate {
     await this.lastFlow.start(ctx);
   }
 
+  @Command("excel")
+  async onExcel(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return;
+    }
+
+    await this.excelFlow.start(ctx, userId);
+  }
+
   @Command("cancel")
   async onCancel(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
@@ -263,6 +283,11 @@ export class TelegramUpdate {
 
     if (state.flow === "rating") {
       await this.ratingFlow.handleCustomPeriodText(ctx, userId, text);
+      return;
+    }
+
+    if (state.flow === "excel") {
+      await this.excelFlow.handleCustomPeriodText(ctx, userId, text);
       return;
     }
 
@@ -587,6 +612,28 @@ export class TelegramUpdate {
     await this.lastFlow.handleMore(ctx, offset);
   }
 
+  @Action(/^excel_period:(.+)$/)
+  async onExcelPeriodSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const periodType = data?.split(":")[1] as PeriodType | undefined;
+    if (!periodType) {
+      await ctx.answerCbQuery("Не удалось определить период.");
+      return;
+    }
+
+    await this.excelFlow.handlePeriodSelected(ctx, userId, periodType);
+  }
+
   private async ensureAllowed(ctx: BotContext, ignorePause = false) {
     const userId = getUserId(ctx);
 
@@ -650,6 +697,9 @@ export class TelegramUpdate {
         break;
       case MAIN_MENU_BUTTONS.last:
         await this.onLast(ctx);
+        break;
+      case MAIN_MENU_BUTTONS.excel:
+        await this.onExcel(ctx);
         break;
       case MAIN_MENU_BUTTONS.help:
         await this.onHelp(ctx);
