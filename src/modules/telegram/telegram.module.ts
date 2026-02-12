@@ -15,6 +15,7 @@ import { RatingFlow } from "./flows/rating.flow";
 import { LastFlow } from "./flows/last.flow";
 import { HelpFlow } from "./flows/help.flow";
 import { CategoryManageFlow } from "./flows/category-manage.flow";
+import { ExcelFlow } from "./flows/excel.flow";
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { CategoryManageFlow } from "./flows/category-manage.flow";
     LastFlow,
     HelpFlow,
     CategoryManageFlow,
+    ExcelFlow,
   ],
 })
 export class TelegramModule {}
