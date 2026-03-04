@@ -3,6 +3,7 @@ module.exports = {
     {
       name: 'finance-bot',
       script: 'dist/main.js',
+      exec_mode: 'fork',
       instances: 1,
       autorestart: true,
       restart_delay: 5000,
