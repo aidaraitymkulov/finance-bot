@@ -39,15 +39,19 @@ export const formatCategoryStatsMessage = (
     `Среднее в день: ${stats.avgPerDay.toFixed(2)}`,
   ].join("\n");
 
-export const formatRatingMessage = (start: Date, end: Date, rating: ExpenseRatingItem[]) => {
+export const formatRatingMessage = (
+  start: Date,
+  end: Date,
+  rating: ExpenseRatingItem[],
+  type: CategoryType,
+) => {
+  const label = type === CategoryType.INCOME ? "Рейтинг доходов" : "Рейтинг расходов";
   const lines = rating.map((item, index) => {
     const position = String(index + 1).padStart(2, "0");
     return `${position}. ${item.category} — ${item.total.toFixed(2)}`;
   });
 
-  return [`Период: ${formatDate(start)} — ${formatDate(end)}`, "Рейтинг расходов:", ...lines].join(
-    "\n",
-  );
+  return [`Период: ${formatDate(start)} — ${formatDate(end)}`, `${label}:`, ...lines].join("\n");
 };
 
 export const formatOperationTypeLabel = (type: CategoryType) =>

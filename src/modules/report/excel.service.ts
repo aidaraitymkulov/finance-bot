@@ -29,6 +29,32 @@ export class ExcelService {
     return Buffer.from(buffer);
   }
 
+  async generateIncomeReport(
+    operations: OperationForExport[],
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const incomes = operations.filter((op) => op.type === CategoryType.INCOME);
+    this.createIncomeSheet(workbook, incomes);
+    this.createSingleSummarySheet(workbook, incomes, "Доходы", startDate, endDate);
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
+  async generateExpenseReport(
+    operations: OperationForExport[],
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const expenses = operations.filter((op) => op.type === CategoryType.EXPENSE);
+    this.createExpenseSheet(workbook, expenses);
+    this.createSingleSummarySheet(workbook, expenses, "Расходы", startDate, endDate);
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
   private createExpenseSheet(
     workbook: ExcelJS.Workbook,
     expenses: OperationForExport[],
@@ -81,6 +107,35 @@ export class ExcelService {
     });
 
     this.addTotal(sheet, incomes, 3);
+  }
+
+  private createSingleSummarySheet(
+    workbook: ExcelJS.Workbook,
+    operations: OperationForExport[],
+    label: string,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const sheet = workbook.addWorksheet("Сводка");
+    const byCategory = this.groupByCategory(operations);
+    const total = operations.reduce((sum, op) => sum + op.amount, 0);
+
+    sheet.addRow(["Отчёт за период"]).font = { bold: true, size: 14 };
+    sheet.addRow([`${this.formatDate(startDate)} — ${this.formatDate(endDate)}`]);
+    sheet.addRow([]);
+    sheet.addRow([`Итого ${label.toLowerCase()}:`, total.toFixed(2)]).font = { bold: true };
+    sheet.addRow([]);
+
+    if (byCategory.length > 0) {
+      sheet.addRow([`${label} по категориям`]).font = { bold: true };
+      const header = sheet.addRow(["Категория", "Сумма"]);
+      header.font = { bold: true };
+      header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E0E0" } };
+      byCategory.forEach((item) => sheet.addRow([item.category, item.total.toFixed(2)]));
+    }
+
+    sheet.getColumn(1).width = 30;
+    sheet.getColumn(2).width = 15;
   }
 
   private createSummarySheet(

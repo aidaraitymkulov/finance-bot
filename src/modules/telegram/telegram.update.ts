@@ -3,6 +3,7 @@ import { Logger } from "@nestjs/common";
 import { Action, Command, Ctx, On, Start, Update } from "nestjs-telegraf";
 import { CategoryType } from "../category/category-type.enum";
 import { PeriodType } from "../../common/types/period.type";
+import { ExcelReportType } from "./state/dialog-state.types";
 import { MAIN_MENU_BUTTONS } from "./keyboards/main-menu.keyboard";
 import { DialogStateService } from "./state/dialog-state.service";
 import { BotPauseService } from "./state/bot-pause.service";
@@ -572,6 +573,28 @@ export class TelegramUpdate {
     await this.categoryManageFlow.handleEditSelected(ctx, userId, categoryCode);
   }
 
+  @Action(/^rating_type:(.+)$/)
+  async onRatingTypeSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const type = data?.split(":")[1];
+    if (!type) {
+      await ctx.answerCbQuery("Не удалось определить тип.");
+      return;
+    }
+
+    await this.ratingFlow.handleTypeSelected(ctx, userId, type);
+  }
+
   @Action(/^rating_period:(.+)$/)
   async onRatingPeriodSelected(@Ctx() ctx: BotContext) {
     const isAllowed = await this.ensureAllowed(ctx);
@@ -610,6 +633,28 @@ export class TelegramUpdate {
     }
 
     await this.lastFlow.handleMore(ctx, offset);
+  }
+
+  @Action(/^excel_type:(.+)$/)
+  async onExcelTypeSelected(@Ctx() ctx: BotContext) {
+    const isAllowed = await this.ensureAllowed(ctx);
+    if (!isAllowed) {
+      return;
+    }
+
+    const userId = getUserId(ctx);
+    if (!userId) {
+      return;
+    }
+
+    const data = getCallbackData(ctx);
+    const reportType = data?.split(":")[1] as ExcelReportType | undefined;
+    if (!reportType) {
+      await ctx.answerCbQuery("Не удалось определить тип отчёта.");
+      return;
+    }
+
+    await this.excelFlow.handleTypeSelected(ctx, userId, reportType);
   }
 
   @Action(/^excel_period:(.+)$/)

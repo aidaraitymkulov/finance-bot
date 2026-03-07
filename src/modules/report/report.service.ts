@@ -79,13 +79,25 @@ export class ReportService {
   }
 
   async getExpenseRating(user: UserEntity, range: PeriodRange): Promise<ExpenseRatingItem[]> {
+    return this.getRatingByType(user, range, CategoryType.EXPENSE);
+  }
+
+  async getIncomeRating(user: UserEntity, range: PeriodRange): Promise<ExpenseRatingItem[]> {
+    return this.getRatingByType(user, range, CategoryType.INCOME);
+  }
+
+  private async getRatingByType(
+    user: UserEntity,
+    range: PeriodRange,
+    type: CategoryType,
+  ): Promise<ExpenseRatingItem[]> {
     const rows = await this.operationRepository
       .createQueryBuilder("operation")
       .leftJoin("operation.category", "category")
       .select("category.displayName", "category")
       .addSelect("SUM(operation.amount)", "total")
       .where("operation.userId = :userId", { userId: user.id })
-      .andWhere("operation.type = :expenseType", { expenseType: CategoryType.EXPENSE })
+      .andWhere("operation.type = :type", { type })
       .andWhere("operation.createdAt BETWEEN :start AND :end", {
         start: range.start,
         end: range.end,

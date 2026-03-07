@@ -27,14 +27,23 @@ export const parseCustomDateRange = (
 };
 
 const parseDate = (value: string): Date | null => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) {
+  let year: number, month: number, day: number;
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const dotMatch = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(value);
+
+  if (isoMatch) {
+    year = Number(isoMatch[1]);
+    month = Number(isoMatch[2]);
+    day = Number(isoMatch[3]);
+  } else if (dotMatch) {
+    day = Number(dotMatch[1]);
+    month = Number(dotMatch[2]);
+    year = Number(dotMatch[3]);
+  } else {
     return null;
   }
 
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
   const date = new Date(year, month - 1, day);
 
   if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {

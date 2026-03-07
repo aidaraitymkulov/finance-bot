@@ -22,8 +22,9 @@ export type StatsDialogState =
     };
 
 export type RatingDialogState =
-  | { flow: "rating"; step: "rating_period" }
-  | { flow: "rating"; step: "rating_custom_period" };
+  | { flow: "rating"; step: "rating_type" }
+  | { flow: "rating"; step: "rating_period"; categoryType: CategoryType }
+  | { flow: "rating"; step: "rating_custom_period"; categoryType: CategoryType };
 
 export type CategoryManageDialogState =
   | { flow: "category_manage"; step: "category_manage_action" }
@@ -40,9 +41,12 @@ export type CategoryManageDialogState =
   | { flow: "category_manage"; step: "category_manage_delete_type" }
   | { flow: "category_manage"; step: "category_manage_delete_select"; type: CategoryType };
 
+export type ExcelReportType = "income" | "expense" | "all";
+
 export type ExcelDialogState =
-  | { flow: "excel"; step: "excel_period" }
-  | { flow: "excel"; step: "excel_custom_period" };
+  | { flow: "excel"; step: "excel_type" }
+  | { flow: "excel"; step: "excel_period"; reportType: ExcelReportType }
+  | { flow: "excel"; step: "excel_custom_period"; reportType: ExcelReportType };
 
 export type DialogState =
   | OperationDialogState

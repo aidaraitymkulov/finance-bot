@@ -59,7 +59,7 @@ export class StatsFlow {
 
     const range = parseCustomDateRange(text);
     if (!range) {
-      await ctx.reply("Неверный формат. Пример: 2025-01-01 2025-01-31");
+      await ctx.reply("Неверный формат. Пример: 01.01.2025 31.01.2025");
       return;
     }
 
@@ -165,7 +165,7 @@ export class StatsFlow {
     if (periodType === "custom") {
       this.dialogStateService.set(userId, { flow: "stats", step: "stats_custom_period" });
       await ctx.answerCbQuery();
-      await ctx.reply("Введите период в формате YYYY-MM-DD YYYY-MM-DD.");
+      await ctx.reply("Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025");
       return;
     }
 
@@ -193,7 +193,7 @@ export class StatsFlow {
         categoryCode: state.categoryCode,
       });
       await ctx.answerCbQuery();
-      await ctx.reply("Введите период в формате YYYY-MM-DD YYYY-MM-DD.");
+      await ctx.reply("Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025");
       return;
     }
 
