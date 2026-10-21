@@ -141,7 +141,7 @@ export class CategoryManageFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 
@@ -207,7 +207,7 @@ export class CategoryManageFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 
@@ -289,7 +289,7 @@ export class CategoryManageFlow {
         await replyWithMarkup(
           ctx,
           "Выберите действие:",
-          this.telegramService.getMainMenuKeyboard().reply_markup,
+          this.telegramService.getFinanceMenuKeyboard().reply_markup,
         );
         return;
       }
@@ -303,7 +303,7 @@ export class CategoryManageFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 
@@ -324,7 +324,7 @@ export class CategoryManageFlow {
       await replyWithMarkup(
         ctx,
         "Выберите действие:",
-        this.telegramService.getMainMenuKeyboard().reply_markup,
+        this.telegramService.getFinanceMenuKeyboard().reply_markup,
       );
       return;
     }

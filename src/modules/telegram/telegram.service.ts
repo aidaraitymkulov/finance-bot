@@ -1,22 +1,40 @@
 import { Injectable } from "@nestjs/common";
 import { buildCancelKeyboard } from "./keyboards/cancel.keyboard";
 import { buildMainMenuKeyboard } from "./keyboards/main-menu.keyboard";
+import { buildFinanceMenuKeyboard } from "./keyboards/finance-menu.keyboard";
 import { buildPausedKeyboard } from "./keyboards/paused.keyboard";
+import { DialogFlow } from "./state/dialog-state.types";
 
 @Injectable()
 export class TelegramService {
   getStartMessage() {
     return [
-      "Финансовый бот запущен.",
-      "Используйте /income или /expense, чтобы добавить операцию.",
-      "Используйте /stats, чтобы получить сводный отчет.",
-      "Используйте /categories, чтобы управлять категориями.",
+      "Личный бот-помощник запущен.",
+      "💰 Финансы — доходы, расходы, статистика и отчёты.",
       "Используйте /help, чтобы увидеть список команд.",
     ].join("\n");
   }
 
   getMainMenuKeyboard() {
     return buildMainMenuKeyboard();
+  }
+
+  getFinanceMenuKeyboard() {
+    return buildFinanceMenuKeyboard();
+  }
+
+  /** Menu of the section a dialog belongs to, so cancelling keeps the user in that section. */
+  getMenuKeyboardForFlow(flow?: DialogFlow) {
+    switch (flow) {
+      case "operation":
+      case "stats":
+      case "rating":
+      case "category_manage":
+      case "excel":
+        return this.getFinanceMenuKeyboard();
+      default:
+        return this.getMainMenuKeyboard();
+    }
   }
 
   getCancelKeyboard() {

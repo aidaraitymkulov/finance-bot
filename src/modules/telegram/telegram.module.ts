@@ -1,10 +1,13 @@
-import { Module } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { TelegrafModule } from "nestjs-telegraf";
 import { TelegramService } from "./telegram.service";
-import { TelegramUpdate } from "./telegram.update";
-import { DialogStateService } from "./state/dialog-state.service";
+import { TelegramStateModule } from "./state/telegram-state.module";
 import { BotPauseService } from "./state/bot-pause.service";
+import { createAccessMiddleware } from "./middlewares/access.middleware";
+import { errorMiddleware } from "./middlewares/error.middleware";
+import { CoreUpdate } from "./updates/core.update";
+import { FinanceUpdate } from "./updates/finance.update";
 import { UserModule } from "../user/user.module";
 import { CategoryModule } from "../category/category.module";
 import { OperationModule } from "../operation/operation.module";
@@ -23,9 +26,11 @@ import { ExcelFlow } from "./flows/excel.flow";
     CategoryModule,
     OperationModule,
     ReportModule,
+    TelegramStateModule,
     TelegrafModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
+      imports: [TelegramStateModule],
+      inject: [ConfigService, BotPauseService],
+      useFactory: (configService: ConfigService, botPauseService: BotPauseService) => {
         const normalizeEnvString = (value?: string) =>
           value ? value.trim().replace(/^['"]|['"]$/g, "") : undefined;
 
@@ -40,16 +45,23 @@ import { ExcelFlow } from "./flows/excel.flow";
           throw new Error("Telegram bot token is missing");
         }
 
+        new Logger(TelegramModule.name).log(
+          `Allowed Telegram user ID: ${telegram?.allowedUserId ?? "not set"}`,
+        );
+
         return {
           token: botToken,
+          middlewares: [
+            errorMiddleware,
+            createAccessMiddleware(telegram?.allowedUserId, botPauseService),
+          ],
         };
       },
     }),
   ],
   providers: [
-    DialogStateService,
-    BotPauseService,
-    TelegramUpdate,
+    CoreUpdate,
+    FinanceUpdate,
     TelegramService,
     OperationFlow,
     StatsFlow,
