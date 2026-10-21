@@ -1,4 +1,4 @@
-import { plainToInstance } from "class-transformer";
+import { plainToInstance, Transform } from "class-transformer";
 import { IsBoolean, IsEnum, IsNumber, IsString } from "class-validator";
 
 enum NodeEnv {
@@ -26,6 +26,8 @@ class EnvVariables {
   @IsString()
   DB_NAME: string;
 
+  // Implicit conversion would turn the string "false" into `true`.
+  @Transform(({ obj }: { obj: Record<string, unknown> }) => String(obj.DB_SYNCHRONIZE) === "true")
   @IsBoolean()
   DB_SYNCHRONIZE: boolean;
 

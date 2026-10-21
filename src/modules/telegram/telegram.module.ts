@@ -12,6 +12,7 @@ import { UserModule } from "../user/user.module";
 import { CategoryModule } from "../category/category.module";
 import { OperationModule } from "../operation/operation.module";
 import { ReportModule } from "../report/report.module";
+import { HabitModule } from "../habit/habit.module";
 import { OperationFlow } from "./flows/operation.flow";
 import { StatsFlow } from "./flows/stats.flow";
 import { RatingFlow } from "./flows/rating.flow";
@@ -19,6 +20,8 @@ import { LastFlow } from "./flows/last.flow";
 import { HelpFlow } from "./flows/help.flow";
 import { CategoryManageFlow } from "./flows/category-manage.flow";
 import { ExcelFlow } from "./flows/excel.flow";
+import { HabitFlow } from "./flows/habit.flow";
+import { HabitUpdate } from "./updates/habit.update";
 
 @Module({
   imports: [
@@ -26,6 +29,7 @@ import { ExcelFlow } from "./flows/excel.flow";
     CategoryModule,
     OperationModule,
     ReportModule,
+    HabitModule,
     TelegramStateModule,
     TelegrafModule.forRootAsync({
       imports: [TelegramStateModule],
@@ -62,6 +66,7 @@ import { ExcelFlow } from "./flows/excel.flow";
   providers: [
     CoreUpdate,
     FinanceUpdate,
+    HabitUpdate,
     TelegramService,
     OperationFlow,
     StatsFlow,
@@ -70,6 +75,7 @@ import { ExcelFlow } from "./flows/excel.flow";
     HelpFlow,
     CategoryManageFlow,
     ExcelFlow,
+    HabitFlow,
   ],
 })
 export class TelegramModule {}

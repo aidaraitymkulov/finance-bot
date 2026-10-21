@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { buildCancelKeyboard } from "./keyboards/cancel.keyboard";
 import { buildMainMenuKeyboard } from "./keyboards/main-menu.keyboard";
 import { buildFinanceMenuKeyboard } from "./keyboards/finance-menu.keyboard";
+import { buildHabitsMenuKeyboard } from "./keyboards/habits-menu.keyboard";
 import { buildPausedKeyboard } from "./keyboards/paused.keyboard";
 import { DialogFlow } from "./state/dialog-state.types";
 
@@ -11,6 +12,7 @@ export class TelegramService {
     return [
       "Личный бот-помощник запущен.",
       "💰 Финансы — доходы, расходы, статистика и отчёты.",
+      "🔥 Привычки — ежедневные отметки и серии, напоминание в 22:00.",
       "Используйте /help, чтобы увидеть список команд.",
     ].join("\n");
   }
@@ -23,6 +25,10 @@ export class TelegramService {
     return buildFinanceMenuKeyboard();
   }
 
+  getHabitsMenuKeyboard() {
+    return buildHabitsMenuKeyboard();
+  }
+
   /** Menu of the section a dialog belongs to, so cancelling keeps the user in that section. */
   getMenuKeyboardForFlow(flow?: DialogFlow) {
     switch (flow) {
@@ -32,6 +38,8 @@ export class TelegramService {
       case "category_manage":
       case "excel":
         return this.getFinanceMenuKeyboard();
+      case "habit":
+        return this.getHabitsMenuKeyboard();
       default:
         return this.getMainMenuKeyboard();
     }

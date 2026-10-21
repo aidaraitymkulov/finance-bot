@@ -2,6 +2,7 @@ import { Command, Ctx, Next, On, Start, Update } from "nestjs-telegraf";
 import { CategoryType } from "../../category/category-type.enum";
 import { MAIN_MENU_BUTTONS } from "../keyboards/main-menu.keyboard";
 import { FINANCE_MENU_BUTTONS } from "../keyboards/finance-menu.keyboard";
+import { HABITS_MENU_BUTTONS } from "../keyboards/habits-menu.keyboard";
 import { DialogStateService } from "../state/dialog-state.service";
 import { BotPauseService } from "../state/bot-pause.service";
 import { HelpFlow } from "../flows/help.flow";
@@ -11,6 +12,7 @@ import { RatingFlow } from "../flows/rating.flow";
 import { StatsFlow } from "../flows/stats.flow";
 import { CategoryManageFlow } from "../flows/category-manage.flow";
 import { ExcelFlow } from "../flows/excel.flow";
+import { HabitFlow } from "../flows/habit.flow";
 import { TelegramService } from "../telegram.service";
 import {
   BotContext,
@@ -37,6 +39,7 @@ export class CoreUpdate {
     private readonly helpFlow: HelpFlow,
     private readonly categoryManageFlow: CategoryManageFlow,
     private readonly excelFlow: ExcelFlow,
+    private readonly habitFlow: HabitFlow,
   ) {}
 
   @Start()
@@ -156,6 +159,9 @@ export class CoreUpdate {
       case "operation":
         await this.operationFlow.handleText(ctx, userId, text, state);
         return;
+      case "habit":
+        await this.habitFlow.handleText(ctx, userId, text, state);
+        return;
     }
   }
 
@@ -167,6 +173,9 @@ export class CoreUpdate {
           "Раздел «Финансы». Выберите действие:",
           this.telegramService.getFinanceMenuKeyboard().reply_markup,
         );
+        return;
+      case MAIN_MENU_BUTTONS.habits:
+        await this.habitFlow.showMenu(ctx);
         return;
       case MAIN_MENU_BUTTONS.help:
         await this.helpFlow.sendHelp(ctx);
@@ -195,6 +204,16 @@ export class CoreUpdate {
         return;
       case FINANCE_MENU_BUTTONS.excel:
         await this.excelFlow.start(ctx, userId);
+        return;
+
+      case HABITS_MENU_BUTTONS.add:
+        await this.habitFlow.startAdd(ctx, userId);
+        return;
+      case HABITS_MENU_BUTTONS.list:
+        await this.habitFlow.sendList(ctx);
+        return;
+      case HABITS_MENU_BUTTONS.check:
+        await this.habitFlow.sendCheckPoll(ctx);
         return;
 
       default:
