@@ -7,10 +7,11 @@ PostgreSQL, TypeORM. Схема меняется **только миграция
 ```
 users ─┬─< operations >── categories
        ├─< habits ─< habit_checkins
-       └─< tasks
+       ├─< tasks
+       └─< subscriptions
 ```
 
-Все пользовательские данные привязаны к `users` с `ON DELETE CASCADE`: удаление пользователя удаляет его операции, привычки с отметками и задачи. Категории **общие** для всех пользователей.
+Все пользовательские данные привязаны к `users` с `ON DELETE CASCADE`: удаление пользователя удаляет его операции, привычки с отметками, задачи и подписки. Категории **общие** для всех пользователей.
 
 ### `users`
 
@@ -34,7 +35,7 @@ users ─┬─< operations >── categories
 | `displayName` | `varchar(64)` | |
 | `order` | `int` | порядок кнопок |
 
-Категории по умолчанию (`category/category.deafult.ts`) досоздаются при каждом старте (`CategoryService.onModuleInit`), если их нет.
+Категории по умолчанию (`category/category.deafult.ts`) досоздаются при каждом старте (`CategoryService.onModuleInit`), если их нет. Среди них «🔔 Подписки» (`subscriptions`): под ней записываются оплаченные подписки.
 
 ### `operations`
 
@@ -87,9 +88,24 @@ users ─┬─< operations >── categories
 
 Индекс `IDX_tasks_user_due (userId, dueDate)`. Просроченные задачи никуда не переносятся: `TaskService.getOpenUntil(user, date)` возвращает все открытые задачи с `dueDate <= date`. Так они остаются в списке «Сегодня», пока их не закроют.
 
+### `subscriptions`
+
+| Колонка | Тип | Примечание |
+| --- | --- | --- |
+| `id` | `uuid` | PK |
+| `userId` | `int` | FK → `users`, cascade |
+| `name` | `varchar(128)` | |
+| `amount` | `numeric(12,2)` | в коде приводится к `number`; валюта не хранится |
+| `period` | `varchar(16)` | `monthly` или `yearly` |
+| `billingDay` | `smallint` | день месяца (1–31), на который настроено списание |
+| `nextPaymentDate` | `date` | локальная дата ближайшего списания |
+| `createdAt` | `timestamptz` | |
+
+Индекс `IDX_subscriptions_user_next (userId, nextPaymentDate)`. После даты списания `nextPaymentDate` сдвигается на следующий период: ночью планировщиком (`advanceOverdue`) и при открытии списка (`getAll`). Кнопка «✅ Оплачено» (`SubscriptionService.markPaid`) сдвигает дату сразу и создаёт запись в `operations` (тип `EXPENSE`, категория с кодом `subscriptions`, `comment` = название). Сдвиг делается условным `UPDATE ... WHERE nextPaymentDate = <дата из кнопки>`, поэтому повторное нажатие не создаёт второй расход. Сдвиг считает `subscription/next-payment.util.ts` от `billingDay`, поэтому подписка с 31-м числом идёт 31.01 → 28.02 → 31.03, а не «застревает» на 28-м.
+
 ## Даты
 
-- Колонки `date` (`habit_checkins.date`, `tasks.dueDate`) хранят **локальную** дату по `Asia/Bishkek`. В коде это строки `"YYYY-MM-DD"` (`common/utils/local-date.util.ts`), и сравниваются они как строки.
+- Колонки `date` (`habit_checkins.date`, `tasks.dueDate`, `subscriptions.nextPaymentDate`) хранят **локальную** дату по `Asia/Bishkek`. В коде это строки `"YYYY-MM-DD"` (`common/utils/local-date.util.ts`), и сравниваются они как строки.
 - TypeORM возвращает `date` строкой только при загрузке сущностей. В сырых запросах (`getRawMany`) драйвер `pg` возвращает объект `Date`, поэтому там форматируйте дату в SQL: ``to_char(col, 'YYYY-MM-DD')`` (см. `HabitService.withStats`).
 - `timestamptz` (`createdAt`, `doneAt`) хранят момент времени. Периоды финансов строятся по ним в локальном времени процесса.
 
@@ -103,6 +119,7 @@ users ─┬─< operations >── categories
 | `1792540800000-AddHabits` | `habits`, `habit_checkins`, enum `habit_checkins_status_enum` |
 | `1792540900000-AddTasks` | `tasks` |
 | `1792541000000-AddUserIsPaused` | колонка `users.isPaused` |
+| `1792541100000-AddSubscriptions` | `subscriptions` |
 
 Как добавить миграцию:
 

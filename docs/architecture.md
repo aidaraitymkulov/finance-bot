@@ -18,6 +18,7 @@ src/
     ├── category/ operation/ report/   # финансы
     ├── habit/                   # привычки, отметки, расчёт серий
     ├── task/                    # задачи
+    ├── subscription/            # подписки, расчёт даты следующего списания
     ├── scheduler/               # cron-уведомления
     └── telegram/                # всё взаимодействие с ботом
 ```
@@ -25,9 +26,12 @@ src/
 ```
 telegram ──┬──> finance (category, operation, report) ──┐
            ├──> habit ──────────────────────────────────┼──> user
-           └──> task ───────────────────────────────────┘
-scheduler ───> habit, task, user
+           ├──> task ───────────────────────────────────┤
+           └──> subscription ───────────────────────────┘
+scheduler ───> habit, task, subscription, user
 ```
+
+`subscription` дополнительно зависит от `operation` и `category`: `SubscriptionService.markPaid` записывает оплату как расход.
 
 Доменные модули не знают о Telegram. `telegram` и `scheduler` используют их сервисы.
 
@@ -44,7 +48,8 @@ Telegram ──polling──> Telegraf
                              ├─ CoreUpdate      /start /help /cancel /disable /clear + единственный @On("text")
                              ├─ FinanceUpdate   /income /expense /stats ... + inline-кнопки финансов
                              ├─ HabitUpdate     /habits + habit_check, habit_del
-                             └─ TaskUpdate      /today /tasks + task_date, task_done, task_del
+                             ├─ TaskUpdate      /today /tasks + task_date, task_done, task_del
+                             └─ SubscriptionUpdate  /subs + sub_period, sub_del
                                      │
                                      ▼
                                   flows/*.flow.ts ──> доменные сервисы ──> PostgreSQL
@@ -63,7 +68,7 @@ Telegraf отдаёт сообщение первому подходящему �
 
 ## Flows и состояние диалога
 
-`flows/*.flow.ts` — по одному injectable-классу на функцию: `OperationFlow`, `StatsFlow`, `RatingFlow`, `CategoryManageFlow`, `LastFlow`, `ExcelFlow`, `HelpFlow`, `HabitFlow`, `TaskFlow`. Update-классы только разбирают входные данные и вызывают методы flow.
+`flows/*.flow.ts` — по одному injectable-классу на функцию: `OperationFlow`, `StatsFlow`, `RatingFlow`, `CategoryManageFlow`, `LastFlow`, `ExcelFlow`, `HelpFlow`, `HabitFlow`, `TaskFlow`, `SubscriptionFlow`. Update-классы только разбирают входные данные и вызывают методы flow.
 
 Многошаговые диалоги — это конечный автомат:
 
@@ -79,10 +84,11 @@ Telegraf отдаёт сообщение первому подходящему �
 
 | Клавиатура | Файл | Кнопки |
 | --- | --- | --- |
-| главное | `keyboards/main-menu.keyboard.ts` | Задачи, Привычки, Финансы, Помощь, Отключить |
+| главное | `keyboards/main-menu.keyboard.ts` | Задачи, Привычки, Финансы, Подписки, Помощь, Отключить |
 | финансы | `keyboards/finance-menu.keyboard.ts` | Доход, Расход, Статистика, Рейтинг, Категории, Последние, Отчёт, Назад |
 | привычки | `keyboards/habits-menu.keyboard.ts` | Отметить сегодня, Новая привычка, Мои привычки, Назад |
 | задачи | `keyboards/tasks-menu.keyboard.ts` | Сегодня, Неделя, Новая задача, Назад |
+| подписки | `keyboards/subscriptions-menu.keyboard.ts` | Мои подписки, Новая подписка, Назад |
 
 Надписи кнопок хранятся в константах `*_MENU_BUTTONS`, и `handleMenuText` сравнивает текст именно с ними. Надписи reply-кнопок должны быть **уникальны во всех меню**. После завершения или отмены диалога пользователь возвращается в меню своего раздела: `TelegramService.getMenuKeyboardForFlow(flow)`.
 
@@ -95,6 +101,7 @@ Callback data имеет формат `prefix:param[:param]` и ограниче
 | `stats_period:month`, `category:food`, `last_more:10` | `FinanceUpdate` |
 | `habit_check:<uuid>:done`, `habit_del:<uuid>` | `HabitUpdate` |
 | `task_date:wd5`, `task_done:<uuid>:today`, `task_del:<uuid>:week` | `TaskUpdate` |
+| `sub_period:monthly`, `sub_del:<uuid>`, `sub_paid:<uuid>:<YYYYMMDD>` | `SubscriptionUpdate` |
 
 Правила:
 - в регулярном выражении `@Action` ограничивайте параметры: UUID задаётся как `[0-9a-f-]{36}`, режимы перечисляются явно (`(today|week)`). Так некорректный ввод не доходит до Postgres;
@@ -103,7 +110,7 @@ Callback data имеет формат `prefix:param[:param]` и ограниче
 
 ## Views
 
-`views/habit.views.ts` и `views/task.views.ts` — чистые функции, которые возвращают `{ text, reply_markup }`. Их используют и flows (по кнопке), и планировщик (по расписанию), поэтому сообщения выглядят одинаково. Например, `buildTaskListView(tasks, today, "today" | "week", intro?)` строит и список по кнопке «📅 Сегодня», и утренний дайджест.
+`views/habit.views.ts`, `views/task.views.ts` и `views/subscription.views.ts` — чистые функции, которые возвращают `{ text, reply_markup }`. Их используют и flows (по кнопке), и планировщик (по расписанию), поэтому сообщения выглядят одинаково. Например, `buildTaskListView(tasks, today, "today" | "week", intro?)` строит и список по кнопке «📅 Сегодня», и утренний дайджест.
 
 Сообщения финансов форматирует `telegram.formatter.ts`.
 
@@ -115,8 +122,9 @@ Callback data имеет формат `prefix:param[:param]` и ограниче
 | --- | --- | --- |
 | `morning-digest` | `0 9 * * *` | открытые задачи до сегодняшнего дня включительно (то есть с просроченными) и число активных привычек |
 | `habit-poll` | `0 22 * * *` | заголовок и по сообщению на каждую активную привычку без отметки за сегодня |
+| `subscription-reminders` | `0 9 * * *` | одно сообщение со списанием, до которого осталось 3, 1 или 0 дней; затем даты прошедших списаний сдвигаются на следующий период (`advanceOverdue`) |
 
-- Оба job'а работают в `APP_TIME_ZONE`.
+- Все job'ы работают в `APP_TIME_ZONE`.
 - Отправка идёт через `@InjectBot()` на `user.telegramId`: для личного чата это и есть chat id.
 - Получатели — все пользователи из таблицы `users`, кроме тех, кто на паузе, и кроме тех, чей ID не равен `ALLOWED_TELEGRAM_USER_ID` (если он задан).
 - Ошибка отправки одному пользователю логируется и не прерывает рассылку остальным.

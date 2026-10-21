@@ -9,12 +9,15 @@ import { UserService } from "../user/user.service";
 import { UserEntity } from "../user/user.entity";
 import { TaskService } from "../task/task.service";
 import { HabitService } from "../habit/habit.service";
+import { SubscriptionService } from "../subscription/subscription.service";
 import { BotPauseService } from "../telegram/state/bot-pause.service";
 import { buildTaskListView } from "../telegram/views/task.views";
 import { buildHabitPollView } from "../telegram/views/habit.views";
+import { buildSubscriptionReminderView } from "../telegram/views/subscription.views";
 
 const MORNING_DIGEST_JOB = "morning-digest";
 const HABIT_POLL_JOB = "habit-poll";
+const SUBSCRIPTION_REMINDER_JOB = "subscription-reminders";
 
 @Injectable()
 export class NotificationService implements OnApplicationBootstrap {
@@ -27,11 +30,12 @@ export class NotificationService implements OnApplicationBootstrap {
     private readonly userService: UserService,
     private readonly taskService: TaskService,
     private readonly habitService: HabitService,
+    private readonly subscriptionService: SubscriptionService,
     private readonly botPauseService: BotPauseService,
   ) {}
 
   onApplicationBootstrap() {
-    for (const name of [MORNING_DIGEST_JOB, HABIT_POLL_JOB]) {
+    for (const name of [MORNING_DIGEST_JOB, HABIT_POLL_JOB, SUBSCRIPTION_REMINDER_JOB]) {
       const nextRun = this.schedulerRegistry.getCronJob(name).nextDate().toISO();
       this.logger.log(`Job "${name}" next run: ${nextRun}`);
     }
@@ -53,6 +57,26 @@ export class NotificationService implements OnApplicationBootstrap {
         reply_markup: view.reply_markup,
       });
     });
+  }
+
+  /** Reminds 3 days, 1 day and 0 days before a charge, then moves past charge dates forward. */
+  @Cron("0 9 * * *", { name: SUBSCRIPTION_REMINDER_JOB, timeZone: APP_TIME_ZONE })
+  async sendSubscriptionReminders() {
+    const today = todayLocalDate();
+
+    await this.forEachRecipient(async (user) => {
+      const due = await this.subscriptionService.getDueForReminder(user, today);
+      if (due.length === 0) {
+        return;
+      }
+
+      const view = buildSubscriptionReminderView(due, today);
+      await this.bot.telegram.sendMessage(user.telegramId, view.text, {
+        reply_markup: view.reply_markup,
+      });
+    });
+
+    await this.subscriptionService.advanceOverdue(today);
   }
 
   @Cron("0 22 * * *", { name: HABIT_POLL_JOB, timeZone: APP_TIME_ZONE })

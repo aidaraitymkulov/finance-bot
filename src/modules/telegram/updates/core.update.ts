@@ -4,6 +4,7 @@ import { MAIN_MENU_BUTTONS } from "../keyboards/main-menu.keyboard";
 import { FINANCE_MENU_BUTTONS } from "../keyboards/finance-menu.keyboard";
 import { HABITS_MENU_BUTTONS } from "../keyboards/habits-menu.keyboard";
 import { TASKS_MENU_BUTTONS } from "../keyboards/tasks-menu.keyboard";
+import { SUBSCRIPTIONS_MENU_BUTTONS } from "../keyboards/subscriptions-menu.keyboard";
 import { DialogStateService } from "../state/dialog-state.service";
 import { BotPauseService } from "../state/bot-pause.service";
 import { HelpFlow } from "../flows/help.flow";
@@ -15,6 +16,7 @@ import { CategoryManageFlow } from "../flows/category-manage.flow";
 import { ExcelFlow } from "../flows/excel.flow";
 import { HabitFlow } from "../flows/habit.flow";
 import { TaskFlow } from "../flows/task.flow";
+import { SubscriptionFlow } from "../flows/subscription.flow";
 import { TelegramService } from "../telegram.service";
 import {
   BotContext,
@@ -44,6 +46,7 @@ export class CoreUpdate {
     private readonly excelFlow: ExcelFlow,
     private readonly habitFlow: HabitFlow,
     private readonly taskFlow: TaskFlow,
+    private readonly subscriptionFlow: SubscriptionFlow,
   ) {}
 
   @Start()
@@ -170,6 +173,9 @@ export class CoreUpdate {
       case "task":
         await this.taskFlow.handleText(ctx, userId, text, state);
         return;
+      case "subscription":
+        await this.subscriptionFlow.handleText(ctx, userId, text, state);
+        return;
     }
   }
 
@@ -187,6 +193,9 @@ export class CoreUpdate {
         return;
       case MAIN_MENU_BUTTONS.habits:
         await this.habitFlow.showMenu(ctx);
+        return;
+      case MAIN_MENU_BUTTONS.subscriptions:
+        await this.subscriptionFlow.showMenu(ctx);
         return;
       case MAIN_MENU_BUTTONS.help:
         await this.helpFlow.sendHelp(ctx);
@@ -235,6 +244,13 @@ export class CoreUpdate {
         return;
       case TASKS_MENU_BUTTONS.week:
         await this.taskFlow.sendList(ctx, "week");
+        return;
+
+      case SUBSCRIPTIONS_MENU_BUTTONS.add:
+        await this.subscriptionFlow.startAdd(ctx, userId);
+        return;
+      case SUBSCRIPTIONS_MENU_BUTTONS.list:
+        await this.subscriptionFlow.sendList(ctx);
         return;
 
       default:

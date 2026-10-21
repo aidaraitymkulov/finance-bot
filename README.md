@@ -5,6 +5,7 @@
 - 💰 **Финансы** — доходы и расходы, статистика, рейтинг, категории, выгрузка в Excel.
 - 🔥 **Привычки** — ежедневные отметки, серии, опрос в 22:00.
 - ✅ **Задачи** — задачи на конкретный день, утренний план в 09:00.
+- 🔔 **Подписки** — регулярные платежи (месяц/год), напоминание за 3 дня, за 1 день и в день списания.
 
 Подробная документация — в [`docs/`](docs/README.md).
 
@@ -43,7 +44,7 @@ npm run start:prod
 
 ## Архитектура
 
-Модули NestJS: `user`, `category` / `operation` / `report` (финансы), `habit`, `task`, `scheduler` (cron-уведомления) и `telegram` (единственный UI-слой). Подробнее — в [docs/architecture.md](docs/architecture.md).
+Модули NestJS: `user`, `category` / `operation` / `report` (финансы), `habit`, `task`, `subscription`, `scheduler` (cron-уведомления) и `telegram` (единственный UI-слой). Подробнее — в [docs/architecture.md](docs/architecture.md).
 
 ## Переменные окружения
 

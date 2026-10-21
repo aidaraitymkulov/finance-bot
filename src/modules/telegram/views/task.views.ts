@@ -11,7 +11,7 @@ const WEEKDAY_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 const BUTTON_TITLE_LENGTH = 28;
 
 /** "2026-10-23" -> "23.10" */
-const formatShortDate = (date: string) => {
+export const formatShortDate = (date: string) => {
   const [, month, day] = date.split("-");
   return `${day}.${month}`;
 };

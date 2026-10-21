@@ -1,5 +1,8 @@
 import { CategoryType } from "./category-type.enum";
 
+/** Expense category that paid subscriptions are recorded under. */
+export const SUBSCRIPTIONS_CATEGORY_CODE = "subscriptions";
+
 export const DEFAULT_CATEGORIES: Array<{
   type: CategoryType;
   code: string;
@@ -16,4 +19,10 @@ export const DEFAULT_CATEGORIES: Array<{
   { type: CategoryType.EXPENSE, code: "purchases", displayName: "🛍️ Покупки", order: 5 },
   { type: CategoryType.EXPENSE, code: "transfers", displayName: "💳 Переводы", order: 6 },
   { type: CategoryType.EXPENSE, code: "other_expense", displayName: "✨ Другое", order: 7 },
+  {
+    type: CategoryType.EXPENSE,
+    code: SUBSCRIPTIONS_CATEGORY_CODE,
+    displayName: "🔔 Подписки",
+    order: 8,
+  },
 ];

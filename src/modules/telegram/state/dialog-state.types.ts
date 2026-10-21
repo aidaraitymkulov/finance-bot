@@ -1,4 +1,5 @@
 import { CategoryType } from "../../category/category-type.enum";
+import type { SubscriptionPeriod } from "../../subscription/next-payment.util";
 
 export type OperationDialogState =
   | { flow: "operation"; step: "amount"; type: CategoryType }
@@ -59,6 +60,18 @@ export type TaskDialogState =
   | { flow: "task"; step: "task_date"; title: string }
   | { flow: "task"; step: "task_custom_date"; title: string };
 
+export type SubscriptionDialogState =
+  | { flow: "subscription"; step: "sub_name" }
+  | { flow: "subscription"; step: "sub_amount"; name: string }
+  | { flow: "subscription"; step: "sub_period"; name: string; amount: number }
+  | {
+      flow: "subscription";
+      step: "sub_date";
+      name: string;
+      amount: number;
+      period: SubscriptionPeriod;
+    };
+
 export type DialogState =
   | OperationDialogState
   | StatsDialogState
@@ -66,6 +79,7 @@ export type DialogState =
   | CategoryManageDialogState
   | ExcelDialogState
   | HabitDialogState
-  | TaskDialogState;
+  | TaskDialogState
+  | SubscriptionDialogState;
 
 export type DialogFlow = DialogState["flow"];
