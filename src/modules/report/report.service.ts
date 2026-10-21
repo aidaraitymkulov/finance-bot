@@ -140,7 +140,10 @@ export class ReportService {
     };
   }
 
-  async getOperationsForExport(user: UserEntity, range: PeriodRange): Promise<OperationForExport[]> {
+  async getOperationsForExport(
+    user: UserEntity,
+    range: PeriodRange,
+  ): Promise<OperationForExport[]> {
     const operations = await this.operationRepository.find({
       where: {
         user: { id: user.id },

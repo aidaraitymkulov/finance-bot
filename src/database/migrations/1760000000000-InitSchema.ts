@@ -12,7 +12,7 @@ export class InitSchema1760000000000 implements MigrationInterface {
       "CREATE TYPE \"public\".\"operations_type_enum\" AS ENUM('INCOME', 'EXPENSE')",
     );
     await queryRunner.query(
-      "CREATE TABLE \"users\" (" +
+      'CREATE TABLE "users" (' +
         '"id" SERIAL NOT NULL, ' +
         '"telegramId" character varying(64) NOT NULL, ' +
         '"userName" character varying(64) NOT NULL, ' +
@@ -24,9 +24,9 @@ export class InitSchema1760000000000 implements MigrationInterface {
         ")",
     );
     await queryRunner.query(
-      "CREATE TABLE \"categories\" (" +
+      'CREATE TABLE "categories" (' +
         '"id" uuid NOT NULL DEFAULT uuid_generate_v4(), ' +
-        '"type" \"public\".\"categories_type_enum\" NOT NULL, ' +
+        '"type" "public"."categories_type_enum" NOT NULL, ' +
         '"code" character varying(64) NOT NULL, ' +
         '"displayName" character varying(64) NOT NULL, ' +
         '"order" integer NOT NULL, ' +
@@ -36,9 +36,9 @@ export class InitSchema1760000000000 implements MigrationInterface {
         ")",
     );
     await queryRunner.query(
-      "CREATE TABLE \"operations\" (" +
+      'CREATE TABLE "operations" (' +
         '"id" uuid NOT NULL DEFAULT uuid_generate_v4(), ' +
-        '"type" \"public\".\"operations_type_enum\" NOT NULL, ' +
+        '"type" "public"."operations_type_enum" NOT NULL, ' +
         '"amount" numeric(12,2) NOT NULL, ' +
         '"comment" character varying(256), ' +
         '"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(), ' +

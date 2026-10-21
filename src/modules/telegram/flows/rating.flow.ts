@@ -33,7 +33,11 @@ export class RatingFlow {
       "Режим рейтинга запущен. Для выхода используйте ❌ Отмена.",
       this.telegramService.getCancelKeyboard().reply_markup,
     );
-    await replyWithMarkup(ctx, "Выберите тип операций:", this.buildRatingTypeKeyboard().reply_markup);
+    await replyWithMarkup(
+      ctx,
+      "Выберите тип операций:",
+      this.buildRatingTypeKeyboard().reply_markup,
+    );
   }
 
   async handleTypeSelected(ctx: BotContext, userId: string, type: string) {
@@ -85,7 +89,9 @@ export class RatingFlow {
         categoryType: state.categoryType,
       });
       await ctx.answerCbQuery();
-      await ctx.reply("Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025");
+      await ctx.reply(
+        "Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025",
+      );
       return;
     }
 
@@ -148,7 +154,7 @@ export class RatingFlow {
       await replyWithMarkup(
         ctx,
         "Выберите действие:",
-        this.telegramService.getMainMenuKeyboard().reply_markup,
+        this.telegramService.getFinanceMenuKeyboard().reply_markup,
       );
       return;
     }
@@ -158,7 +164,7 @@ export class RatingFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 

@@ -10,6 +10,25 @@ export class UserService {
     @InjectRepository(UserEntity) private readonly userRepository: Repository<UserEntity>,
   ) {}
 
+  findAll(): Promise<UserEntity[]> {
+    return this.userRepository.find();
+  }
+
+  async findPausedTelegramIds(): Promise<string[]> {
+    const users = await this.userRepository.find({
+      select: { telegramId: true },
+      where: { isPaused: true },
+    });
+    return users.map((user) => user.telegramId);
+  }
+
+  async setPaused(payload: TelegramUser, isPaused: boolean): Promise<void> {
+    const user = await this.findOrCreateByTelegramUser(payload);
+    if (user.isPaused !== isPaused) {
+      await this.userRepository.update({ id: user.id }, { isPaused });
+    }
+  }
+
   async getByTelegramId(telegramId: string): Promise<UserEntity | null> {
     return this.userRepository.findOne({
       where: { telegramId: telegramId },

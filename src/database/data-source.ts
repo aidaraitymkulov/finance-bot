@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import { UserEntity } from "../modules/user/user.entity";
 import { CategoryEntity } from "../modules/category/category.entity";
 import { OperationEntity } from "../modules/operation/operation.entity";
+import { HabitEntity } from "../modules/habit/habit.entity";
+import { HabitCheckinEntity } from "../modules/habit/habit-checkin.entity";
+import { TaskEntity } from "../modules/task/task.entity";
 
 const parseBoolean = (value?: string) => value === "true";
 const nodeEnv = process.env.NODE_ENV ?? "development";
@@ -23,7 +26,14 @@ export default new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [UserEntity, CategoryEntity, OperationEntity],
+  entities: [
+    UserEntity,
+    CategoryEntity,
+    OperationEntity,
+    HabitEntity,
+    HabitCheckinEntity,
+    TaskEntity,
+  ],
   migrations: [__dirname + "/migrations/*{.js,.ts}"],
   synchronize: parseBoolean(process.env.DB_SYNCHRONIZE),
   logging: false,

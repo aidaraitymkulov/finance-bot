@@ -141,7 +141,7 @@ export class CategoryManageFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 
@@ -207,7 +207,7 @@ export class CategoryManageFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 
@@ -235,7 +235,11 @@ export class CategoryManageFlow {
 
   async handleEditSelected(ctx: BotContext, userId: string, categoryCode: string) {
     const state = this.dialogStateService.get(userId);
-    if (!state || state.flow !== "category_manage" || state.step !== "category_manage_edit_select") {
+    if (
+      !state ||
+      state.flow !== "category_manage" ||
+      state.step !== "category_manage_edit_select"
+    ) {
       await ctx.answerCbQuery("Сначала выберите тип.");
       return;
     }
@@ -289,7 +293,7 @@ export class CategoryManageFlow {
         await replyWithMarkup(
           ctx,
           "Выберите действие:",
-          this.telegramService.getMainMenuKeyboard().reply_markup,
+          this.telegramService.getFinanceMenuKeyboard().reply_markup,
         );
         return;
       }
@@ -303,7 +307,7 @@ export class CategoryManageFlow {
     await replyWithMarkup(
       ctx,
       "Выберите действие:",
-      this.telegramService.getMainMenuKeyboard().reply_markup,
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 
@@ -324,7 +328,7 @@ export class CategoryManageFlow {
       await replyWithMarkup(
         ctx,
         "Выберите действие:",
-        this.telegramService.getMainMenuKeyboard().reply_markup,
+        this.telegramService.getFinanceMenuKeyboard().reply_markup,
       );
       return;
     }

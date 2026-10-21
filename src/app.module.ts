@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 import { Configuration } from "./config/configuration";
 import { DatabaseModule } from "./database/database.module";
 import { validate } from "./config/validation";
@@ -7,6 +8,7 @@ import { UserModule } from "./modules/user/user.module";
 import { CategoryModule } from "./modules/category/category.module";
 import { TelegramModule } from "./modules/telegram/telegram.module";
 import { ReportModule } from "./modules/report/report.module";
+import { SchedulerModule } from "./modules/scheduler/scheduler.module";
 
 const envFilePaths = [`.env.${process.env.NODE_ENV ?? "development"}`, ".env.development", ".env"];
 
@@ -18,11 +20,13 @@ const envFilePaths = [`.env.${process.env.NODE_ENV ?? "development"}`, ".env.dev
       load: [Configuration],
       validate,
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     UserModule,
     CategoryModule,
     ReportModule,
     TelegramModule,
+    SchedulerModule,
   ],
 })
 export class AppModule {}

@@ -1,11 +1,15 @@
 import { CategoryType } from "../../category/category-type.enum";
 
-export type DialogFlow = "operation" | "stats" | "rating" | "category_manage" | "excel";
-
 export type OperationDialogState =
   | { flow: "operation"; step: "amount"; type: CategoryType }
   | { flow: "operation"; step: "category"; type: CategoryType; amount: number }
-  | { flow: "operation"; step: "comment"; type: CategoryType; amount: number; categoryCode: string };
+  | {
+      flow: "operation";
+      step: "comment";
+      type: CategoryType;
+      amount: number;
+      categoryCode: string;
+    };
 
 export type StatsDialogState =
   | { flow: "stats"; step: "stats_mode" }
@@ -48,9 +52,20 @@ export type ExcelDialogState =
   | { flow: "excel"; step: "excel_period"; reportType: ExcelReportType }
   | { flow: "excel"; step: "excel_custom_period"; reportType: ExcelReportType };
 
+export type HabitDialogState = { flow: "habit"; step: "habit_add_title" };
+
+export type TaskDialogState =
+  | { flow: "task"; step: "task_title" }
+  | { flow: "task"; step: "task_date"; title: string }
+  | { flow: "task"; step: "task_custom_date"; title: string };
+
 export type DialogState =
   | OperationDialogState
   | StatsDialogState
   | RatingDialogState
   | CategoryManageDialogState
-  | ExcelDialogState;
+  | ExcelDialogState
+  | HabitDialogState
+  | TaskDialogState;
+
+export type DialogFlow = DialogState["flow"];

@@ -20,6 +20,49 @@ export const getCallbackData = (ctx: BotContext): string | null => {
   return query.data ?? null;
 };
 
+/** "habit_check:<id>:done" -> ["<id>", "done"] (the prefix is dropped). */
+export const getCallbackParts = (ctx: BotContext): string[] =>
+  getCallbackData(ctx)?.split(":").slice(1) ?? [];
+
+/**
+ * Shared shape of inline-button handlers: resolve the user, check that the callback carries
+ * `expectedParams` values after the prefix, otherwise answer with `errorText`.
+ */
+export const handleCallbackParams = async (
+  ctx: BotContext,
+  errorText: string,
+  handler: (userId: string, params: string[]) => Promise<unknown>,
+  expectedParams = 1,
+) => {
+  const userId = getUserId(ctx);
+  if (!userId) {
+    return;
+  }
+
+  const params = getCallbackParts(ctx);
+  if (params.length < expectedParams || params.slice(0, expectedParams).some((part) => !part)) {
+    await ctx.answerCbQuery(errorText);
+    return;
+  }
+
+  await handler(userId, params);
+};
+
+/** editMessageText that ignores Telegram's "message is not modified" (e.g. a double tap). */
+export const editMessageSafe = async (
+  ctx: BotContext,
+  text: string,
+  replyMarkup?: InlineKeyboardMarkup,
+) => {
+  try {
+    await ctx.editMessageText(text, { reply_markup: replyMarkup });
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("message is not modified")) {
+      throw error;
+    }
+  }
+};
+
 export const replyWithMarkup = (
   ctx: BotContext,
   text: string,
@@ -28,6 +71,15 @@ export const replyWithMarkup = (
 
 export const getUserId = (ctx: BotContext): string | null =>
   ctx.from?.id ? String(ctx.from.id) : null;
+
+/** Same as getUserId, but tells the user when it cannot be determined. */
+export const requireUserId = async (ctx: BotContext): Promise<string | null> => {
+  const userId = getUserId(ctx);
+  if (!userId) {
+    await ctx.reply("Не удалось определить пользователя.");
+  }
+  return userId;
+};
 
 export const getTelegramUser = (ctx: BotContext): TelegramUser | null => {
   const from = ctx.from;
