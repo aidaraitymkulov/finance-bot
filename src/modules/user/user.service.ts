@@ -10,6 +10,10 @@ export class UserService {
     @InjectRepository(UserEntity) private readonly userRepository: Repository<UserEntity>,
   ) {}
 
+  findAll(): Promise<UserEntity[]> {
+    return this.userRepository.find();
+  }
+
   async getByTelegramId(telegramId: string): Promise<UserEntity | null> {
     return this.userRepository.findOne({
       where: { telegramId: telegramId },
