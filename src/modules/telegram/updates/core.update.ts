@@ -18,6 +18,7 @@ import { TaskFlow } from "../flows/task.flow";
 import { TelegramService } from "../telegram.service";
 import {
   BotContext,
+  getTelegramUser,
   getUserId,
   isTextMessage,
   replyWithMarkup,
@@ -47,10 +48,10 @@ export class CoreUpdate {
 
   @Start()
   async onStart(@Ctx() ctx: BotContext) {
-    const userId = getUserId(ctx);
-    if (userId) {
-      this.botPauseService.resume(userId);
-      this.dialogStateService.clear(userId);
+    const telegramUser = getTelegramUser(ctx);
+    if (telegramUser) {
+      await this.botPauseService.resume(telegramUser);
+      this.dialogStateService.clear(telegramUser.id);
     }
 
     await ctx.reply(this.telegramService.getStartMessage());
@@ -72,13 +73,14 @@ export class CoreUpdate {
 
   @Command("disable")
   async onDisable(@Ctx() ctx: BotContext) {
-    const userId = await requireUserId(ctx);
-    if (!userId) {
+    const telegramUser = getTelegramUser(ctx);
+    if (!telegramUser) {
+      await ctx.reply("Не удалось определить пользователя.");
       return;
     }
 
-    this.dialogStateService.clear(userId);
-    this.botPauseService.pause(userId);
+    this.dialogStateService.clear(telegramUser.id);
+    await this.botPauseService.pause(telegramUser);
 
     try {
       await ctx.deleteMessage();

@@ -16,10 +16,9 @@ npm run lint               # eslint src  (lint:fix to autofix)
 npm run format             # prettier (double quotes, trailing commas, printWidth 100)
 npm test                   # jest, unit specs = src/**/*.spec.ts
 npx jest path/to/file.spec.ts   # single test file (add -t "name" for a single test)
-npm run test:e2e           # test/jest-e2e.json
 ```
 
-`npm run lint` currently reports pre-existing prettier/`no-useless-escape` errors in older files; lint the files you touch. `test/app.e2e-spec.ts` is the stale Nest scaffold (expects `GET /` → "Hello World!", which doesn't exist).
+`npm run lint` and `npm test` are expected to pass cleanly. There are no e2e tests (booting `AppModule` would connect to Postgres and start Telegram polling).
 
 ### Migrations
 
@@ -43,7 +42,7 @@ Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `cate
 
 **Telegram layer (`src/modules/telegram/`)**:
 
-- **Middlewares** (registered in `TelegrafModule.forRootAsync` in `telegram.module.ts`): `error.middleware.ts` catches handler errors so polling survives; `access.middleware.ts` enforces the `ALLOWED_TELEGRAM_USER_ID` whitelist and the `/disable` pause (only `/start` passes while paused). Handlers do no access checks themselves. (Nest guards are not used: a rejecting guard throws `ForbiddenException`, which nestjs-telegraf does not catch.)
+- **Middlewares** (registered in `TelegrafModule.forRootAsync` in `telegram.module.ts`): `error.middleware.ts` catches handler errors so polling survives; `access.middleware.ts` enforces the `ALLOWED_TELEGRAM_USER_ID` whitelist and the `/disable` pause (only `/start` passes while paused). The pause is persisted in `users.isPaused`; `BotPauseService` loads it at startup and keeps an in-memory cache for the synchronous middleware check. Handlers do no access checks themselves. (Nest guards are not used: a rejecting guard throws `ForbiddenException`, which nestjs-telegraf does not catch.)
 - **Update classes** in `updates/`: `core.update.ts` (`/start`, `/help`, `/cancel`, `/disable`, menu navigation), `finance.update.ts`, `habit.update.ts`, `task.update.ts` — commands and `@Action(regex)` handlers that delegate to flows.
 - **Exactly one `@On("text")`**, in `CoreUpdate`: Telegraf gives text to the first matching handler. It calls `next()` for `/commands` (so commands in other Update classes still fire), handles cancel/back, routes reply-keyboard labels via `handleMenuText` when no dialog is active, and otherwise dispatches by `state.flow` to the flow's text handler.
 - `flows/*.flow.ts` — one injectable per feature. Each has `start()`/`showMenu()` plus `handleXxx()` methods per step.
@@ -58,7 +57,7 @@ Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `cate
 **Scheduler** (`src/modules/scheduler/notification.service.ts`): `@nestjs/schedule` cron jobs in `APP_TIME_ZONE` — 09:00 morning digest (open tasks due today incl. overdue) and 22:00 habit poll (active habits not checked today). Sends via `@InjectBot()` to `user.telegramId`, skipping paused users and users other than `ALLOWED_TELEGRAM_USER_ID`; failures are logged per user. Next run times are logged at startup.
 
 **Data model**:
-- `UserEntity` (keyed by `telegramId`, created lazily via `userService.findOrCreateByTelegramUser`).
+- `UserEntity` (keyed by `telegramId`, created lazily via `userService.findOrCreateByTelegramUser`; `isPaused` = `/disable`).
 - Finance: `CategoryEntity` (global, not per-user; unique `(type, code)`; `CategoryType` = `INCOME | EXPENSE`), `OperationEntity` (user + category + type + `numeric(12,2)` amount transformed to `number` + optional comment). `CategoryService.onModuleInit` seeds `DEFAULT_CATEGORIES` from `category.deafult.ts` (sic).
 - `HabitEntity` (soft-deleted via `isActive`) and `HabitCheckinEntity` (one per habit per local date, `DONE | SKIPPED`, re-check overwrites). Streaks are computed on read by `habit/streak.util.ts` (`calcStreak`): consecutive DONE days ending today, or yesterday if today isn't checked yet.
 - `TaskEntity` (`dueDate` local date, `isDone`). Overdue tasks are never moved: `TaskService.getOpenUntil(user, date)` returns all open tasks due up to that date, which is how they carry over.

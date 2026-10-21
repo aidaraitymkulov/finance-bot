@@ -54,7 +54,7 @@ LOG [NestApplication] Nest application successfully started
 | `npm run start:prod` | `node dist/main.js` с `NODE_ENV=production` |
 | `npm test` | unit-тесты (`src/**/*.spec.ts`) |
 | `npx jest path/to/file.spec.ts` | один тестовый файл (`-t "имя"` для одного теста) |
-| `npm run lint` / `npm run format` | ESLint / Prettier |
+| `npm run lint` / `npm run format` | ESLint / Prettier (линтер должен проходить без ошибок) |
 
 ## Миграции
 
@@ -83,6 +83,6 @@ pm2 startOrReload ecosystem.config.js --env production
 
 ### Переход на версию с привычками и задачами
 
-До этой версии из-за ошибки разбора `DB_SYNCHRONIZE` автосинхронизация схемы TypeORM была включена всегда, даже при `false`. Теперь она действительно выключена, поэтому новые таблицы (`habits`, `habit_checkins`, `tasks`) создаются **только миграциями**. При первом деплое обязательно выполните `npm run migration:run:prod`.
+До этой версии из-за ошибки разбора `DB_SYNCHRONIZE` автосинхронизация схемы TypeORM была включена всегда, даже при `false`. Теперь она действительно выключена, поэтому новые таблицы (`habits`, `habit_checkins`, `tasks`) и колонка `users.isPaused` создаются **только миграциями**. При первом деплое обязательно выполните `npm run migration:run:prod`.
 
 Побочный эффект старой синхронизации: в базах, где она работала, внешние ключи и unique-ограничения старых таблиц переименованы. На работу бота это не влияет, но откат первой миграции `InitSchema` там может не сработать.

@@ -13,10 +13,7 @@ export class DialogStateService {
     this.states.set(userId, state);
   }
 
-  update(
-    userId: string,
-    updater: (current: DialogState) => DialogState,
-  ): DialogState | undefined {
+  update(userId: string, updater: (current: DialogState) => DialogState): DialogState | undefined {
     const current = this.states.get(userId);
     if (!current) {
       return undefined;

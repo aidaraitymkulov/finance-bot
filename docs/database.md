@@ -19,6 +19,7 @@ users ─┬─< operations >── categories
 | `id` | `serial` | PK |
 | `telegramId` | `varchar(64)` | unique; для личного чата совпадает с chat id |
 | `userName`, `firstName`, `lastName` | `varchar(64)` | обновляются, если изменились в Telegram |
+| `isPaused` | `boolean` | бот на паузе (`/disable`); снимается по `/start` |
 | `createdAt` | `timestamptz` | |
 
 Запись создаётся при первом действии пользователя (`UserService.findOrCreateByTelegramUser`).
@@ -101,6 +102,7 @@ users ─┬─< operations >── categories
 | `1760000000000-InitSchema` | `users`, `categories`, `operations` |
 | `1792540800000-AddHabits` | `habits`, `habit_checkins`, enum `habit_checkins_status_enum` |
 | `1792540900000-AddTasks` | `tasks` |
+| `1792541000000-AddUserIsPaused` | колонка `users.isPaused` |
 
 Как добавить миграцию:
 

@@ -13,6 +13,8 @@ export class UserEntity {
   firstName: string;
   @Column({ type: "varchar", length: 64 })
   lastName: string;
+  @Column({ type: "boolean", default: false })
+  isPaused: boolean;
   @CreateDateColumn({ type: "timestamptz" })
   createdAt: Date;
 }
