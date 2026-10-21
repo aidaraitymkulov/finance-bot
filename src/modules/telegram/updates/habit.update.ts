@@ -12,7 +12,7 @@ export class HabitUpdate {
     await this.habitFlow.sendList(ctx);
   }
 
-  @Action(/^habit_check:([^:]+):(done|skip)$/)
+  @Action(/^habit_check:([0-9a-f-]{36}):(done|skip)$/)
   async onHabitCheck(@Ctx() ctx: BotContext) {
     await handleCallbackParams(
       ctx,
@@ -22,7 +22,7 @@ export class HabitUpdate {
     );
   }
 
-  @Action(/^habit_del:(.+)$/)
+  @Action(/^habit_del:([0-9a-f-]{36})$/)
   async onHabitDelete(@Ctx() ctx: BotContext) {
     await handleCallbackParams(ctx, "Не удалось определить привычку.", (_userId, [habitId]) =>
       this.habitFlow.handleDelete(ctx, habitId),

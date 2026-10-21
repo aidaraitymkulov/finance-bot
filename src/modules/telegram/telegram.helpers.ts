@@ -48,6 +48,21 @@ export const handleCallbackParams = async (
   await handler(userId, params);
 };
 
+/** editMessageText that ignores Telegram's "message is not modified" (e.g. a double tap). */
+export const editMessageSafe = async (
+  ctx: BotContext,
+  text: string,
+  replyMarkup?: InlineKeyboardMarkup,
+) => {
+  try {
+    await ctx.editMessageText(text, { reply_markup: replyMarkup });
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("message is not modified")) {
+      throw error;
+    }
+  }
+};
+
 export const replyWithMarkup = (
   ctx: BotContext,
   text: string,

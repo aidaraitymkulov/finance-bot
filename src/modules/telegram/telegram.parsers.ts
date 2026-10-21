@@ -26,7 +26,8 @@ export const parseCustomDateRange = (
   return buildCustomRange(start, end);
 };
 
-const parseDate = (value: string): Date | null => {
+/** Accepts дд.мм.гггг or гггг-мм-дд; returns a local Date at midnight. */
+export const parseDate = (value: string): Date | null => {
   let year: number, month: number, day: number;
 
   const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);

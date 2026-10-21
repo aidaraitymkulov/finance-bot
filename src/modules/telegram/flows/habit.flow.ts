@@ -12,7 +12,7 @@ import {
   buildHabitListView,
   buildHabitPollView,
 } from "../views/habit.views";
-import { getTelegramUser, replyWithMarkup } from "../telegram.helpers";
+import { editMessageSafe, getTelegramUser, replyWithMarkup } from "../telegram.helpers";
 import type { BotContext } from "../telegram.helpers";
 
 @Injectable()
@@ -120,7 +120,7 @@ export class HabitFlow {
     }
 
     await ctx.answerCbQuery(status === HabitCheckinStatus.DONE ? "Отлично! 💪" : "Записал.");
-    await ctx.editMessageText(buildHabitCheckedText(result));
+    await editMessageSafe(ctx, buildHabitCheckedText(result));
   }
 
   async handleDelete(ctx: BotContext, habitId: string) {
@@ -135,7 +135,7 @@ export class HabitFlow {
     const view = buildHabitListView(
       await this.habitService.getActiveWithStats(user, todayLocalDate()),
     );
-    await ctx.editMessageText(view.text, { reply_markup: view.reply_markup });
+    await editMessageSafe(ctx, view.text, view.reply_markup);
   }
 
   private async resolveUser(ctx: BotContext): Promise<UserEntity | null> {
