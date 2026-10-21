@@ -25,6 +25,9 @@ import { HabitFlow } from "./flows/habit.flow";
 import { HabitUpdate } from "./updates/habit.update";
 import { TaskFlow } from "./flows/task.flow";
 import { TaskUpdate } from "./updates/task.update";
+import { SubscriptionModule } from "../subscription/subscription.module";
+import { SubscriptionFlow } from "./flows/subscription.flow";
+import { SubscriptionUpdate } from "./updates/subscription.update";
 
 @Module({
   imports: [
@@ -34,6 +37,7 @@ import { TaskUpdate } from "./updates/task.update";
     ReportModule,
     HabitModule,
     TaskModule,
+    SubscriptionModule,
     TelegramStateModule,
     TelegrafModule.forRootAsync({
       imports: [TelegramStateModule],
@@ -72,6 +76,7 @@ import { TaskUpdate } from "./updates/task.update";
     FinanceUpdate,
     HabitUpdate,
     TaskUpdate,
+    SubscriptionUpdate,
     TelegramService,
     OperationFlow,
     StatsFlow,
@@ -82,6 +87,7 @@ import { TaskUpdate } from "./updates/task.update";
     ExcelFlow,
     HabitFlow,
     TaskFlow,
+    SubscriptionFlow,
   ],
 })
 export class TelegramModule {}

@@ -4,6 +4,7 @@ export const MAIN_MENU_BUTTONS = {
   finance: "💰 Финансы",
   habits: "🔥 Привычки",
   tasks: "✅ Задачи",
+  subscriptions: "🔔 Подписки",
   help: "❓ Помощь",
   disable: "⏸ Отключить",
   cancel: "❌ Отмена",
@@ -13,6 +14,6 @@ export const MAIN_MENU_BUTTONS = {
 export const buildMainMenuKeyboard = () =>
   Markup.keyboard([
     [MAIN_MENU_BUTTONS.tasks, MAIN_MENU_BUTTONS.habits],
-    [MAIN_MENU_BUTTONS.finance],
+    [MAIN_MENU_BUTTONS.finance, MAIN_MENU_BUTTONS.subscriptions],
     [MAIN_MENU_BUTTONS.help, MAIN_MENU_BUTTONS.disable],
   ]).resize();

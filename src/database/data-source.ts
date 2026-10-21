@@ -7,6 +7,7 @@ import { OperationEntity } from "../modules/operation/operation.entity";
 import { HabitEntity } from "../modules/habit/habit.entity";
 import { HabitCheckinEntity } from "../modules/habit/habit-checkin.entity";
 import { TaskEntity } from "../modules/task/task.entity";
+import { SubscriptionEntity } from "../modules/subscription/subscription.entity";
 
 const parseBoolean = (value?: string) => value === "true";
 const nodeEnv = process.env.NODE_ENV ?? "development";
@@ -33,6 +34,7 @@ export default new DataSource({
     HabitEntity,
     HabitCheckinEntity,
     TaskEntity,
+    SubscriptionEntity,
   ],
   migrations: [__dirname + "/migrations/*{.js,.ts}"],
   synchronize: parseBoolean(process.env.DB_SYNCHRONIZE),
