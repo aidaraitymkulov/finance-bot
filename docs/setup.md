@@ -90,7 +90,7 @@ pm2 startOrReload ecosystem.config.js --env production
 Workflow `.github/workflows/ci-cd.yml`:
 
 - на каждый pull request в `main` и на каждый push в `main` запускается job `test`: `npm ci`, `npm run lint`, `npm test`, `npm run build`;
-- после успешного push в `main` запускается job `deploy`: заходит на сервер по SSH и выполняет `deploy/deploy.sh` (fetch + `reset --hard origin/main`, `npm ci`, `npm run migration:run:prod`, `pm2 startOrReload`, проверка, что процесс остался `online`). Если сборка или миграция упали, бот продолжает работать на прежнем коде.
+- после успешного push в `main` запускается job `deploy`: заходит на сервер по SSH и выполняет те же шаги, что в разделе выше: fetch + `reset --hard origin/main`, `npm ci`, `npm run migration:run:prod`, `pm2 startOrReload`, затем проверяет, что процесс остался `online`. Команды написаны прямо в workflow. Если сборка или миграция упали, бот продолжает работать на прежнем коде.
 
 **Секреты репозитория** (Settings → Secrets and variables → Actions):
 
@@ -103,17 +103,14 @@ Workflow `.github/workflows/ci-cd.yml`:
 
 **Одноразовая настройка сервера.**
 
-1. Скопировать `deploy/deploy.sh` **вне репозитория** (например, `/root/deploy-finance-bot.sh`) и сделать исполняемым. Внутри рабочей папки его нельзя держать: `git reset` перезаписал бы скрипт, пока bash его читает.
-2. Создать отдельный ключ: `ssh-keygen -t ed25519 -N "" -f deploy_key -C github-actions-finance-bot`.
-3. Добавить публичную часть в `~/.ssh/authorized_keys` с ограничением на единственную команду:
-   ```
-   command="/root/deploy-finance-bot.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... github-actions-finance-bot
-   ```
-   Такой ключ нельзя использовать для входа в оболочку: что бы ни передали в `ssh`, выполнится только скрипт деплоя.
-4. Проверить ключ, ничего не деплоя: `ssh -i deploy_key root@<адрес> check` должно ответить `ok`. Любая другая команда, переданная этим ключом, запускает деплой (скрипт игнорирует, что именно ему передали).
-5. Приватную часть положить в секрет `SSH_PRIVATE_KEY` и удалить локальные копии.
+1. Создать отдельный ключ: `ssh-keygen -t ed25519 -N "" -f deploy_key -C github-actions-finance-bot`.
+2. Добавить публичную часть (`deploy_key.pub`) в `~/.ssh/authorized_keys` пользователя на сервере.
+3. Проверить вход: `ssh -i deploy_key <пользователь>@<адрес> echo ok`.
+4. Приватную часть положить в секрет `SSH_PRIVATE_KEY` и удалить локальные копии.
 
-При изменении `deploy/deploy.sh` скопируйте новую версию на сервер вручную: автодеплой её не обновляет.
+Ключ даёт полный доступ пользователю, под которым деплоится бот (на сервере это `root`, потому что pm2-демон запущен от него). Не используйте для этого личный ключ и не переиспользуйте деплойный ключ для других сервисов.
+
+Путь `/var/www/finance-bot` и имя процесса `finance-bot` прописаны в workflow.
 
 Рекомендуется включить в GitHub защиту ветки `main` (Settings → Branches): обязательный статус `test` перед слиянием.
 

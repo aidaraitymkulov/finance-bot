@@ -22,7 +22,7 @@ npx jest path/to/file.spec.ts   # single test file (add -t "name" for a single t
 
 ### CI/CD
 
-`.github/workflows/ci-cd.yml`: PRs and pushes to `main` run lint + test + build; a push to `main` then deploys over SSH by running `deploy/deploy.sh` on the server (forced command; copy lives outside the repo on the server and must be updated by hand). Setup and secrets: `docs/setup.md`.
+`.github/workflows/ci-cd.yml`: PRs and pushes to `main` run lint + test + build; a push to `main` then deploys over SSH with the same steps as the manual deploy (commands are inline in the workflow). Setup and secrets: `docs/setup.md`.
 
 ### Migrations
 

@@ -43,10 +43,45 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
-      # The server key is restricted to a forced command (deploy/deploy.sh), so whatever is
-      # passed here is ignored: the key cannot run anything else on the server.
       - name: Deploy
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
-        run: ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" 'bash -s' <<'EOF'
+          set -euo pipefail
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+
+          # Two deploys at once would race on node_modules and dist/.
+          exec 9>/tmp/finance-bot-deploy.lock
+          flock -n 9 || { echo "Another deploy is running"; exit 1; }
+
+          cd /var/www/finance-bot
+          git fetch --quiet origin main
+          git reset --hard origin/main
+          git log --oneline -1
+
+          npm ci --no-audit --no-fund
+
+          # Builds dist/ and applies pending migrations. If this fails, `set -e` stops here
+          # and the running bot keeps working on its already loaded code.
+          npm run migration:run:prod
+
+          pm2 startOrReload ecosystem.config.js --env production --update-env
+          pm2 save --force > /dev/null
+
+          # pm2 says "online" even for a process that crashes a second later, so look again.
+          sleep 8
+          status=$(pm2 jlist | node -e '
+            const apps = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const app = apps.find((item) => item.name === "finance-bot");
+            process.stdout.write(app ? app.pm2_env.status : "missing");
+          ')
+          if [ "$status" != "online" ]; then
+            echo "Bot status is '$status' after restart; last log lines:"
+            pm2 logs finance-bot --lines 30 --nostream || true
+            exit 1
+          fi
+          echo "Deployed, bot is online"
+          EOF
