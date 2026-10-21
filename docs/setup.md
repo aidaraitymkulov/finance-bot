@@ -85,6 +85,38 @@ pm2 startOrReload ecosystem.config.js --env production
 
 Запускайте **ровно один экземпляр**. Второй процесс с тем же токеном вызовет `409 Conflict`, а уведомления по расписанию придут дважды.
 
+### CI/CD (GitHub Actions)
+
+Workflow `.github/workflows/ci-cd.yml`:
+
+- на каждый pull request в `main` и на каждый push в `main` запускается job `test`: `npm ci`, `npm run lint`, `npm test`, `npm run build`;
+- после успешного push в `main` запускается job `deploy`: заходит на сервер по SSH и выполняет `deploy/deploy.sh` (fetch + `reset --hard origin/main`, `npm ci`, `npm run migration:run:prod`, `pm2 startOrReload`, проверка, что процесс остался `online`). Если сборка или миграция упали, бот продолжает работать на прежнем коде.
+
+**Секреты репозитория** (Settings → Secrets and variables → Actions):
+
+| Секрет | Значение |
+| --- | --- |
+| `SSH_HOST` | адрес сервера |
+| `SSH_USER` | пользователь на сервере |
+| `SSH_PRIVATE_KEY` | приватный ключ, созданный только для деплоя |
+| `SSH_KNOWN_HOSTS` | вывод `ssh-keyscan -t ed25519 <адрес>` (закрепляет отпечаток сервера) |
+
+**Одноразовая настройка сервера.**
+
+1. Скопировать `deploy/deploy.sh` **вне репозитория** (например, `/root/deploy-finance-bot.sh`) и сделать исполняемым. Внутри рабочей папки его нельзя держать: `git reset` перезаписал бы скрипт, пока bash его читает.
+2. Создать отдельный ключ: `ssh-keygen -t ed25519 -N "" -f deploy_key -C github-actions-finance-bot`.
+3. Добавить публичную часть в `~/.ssh/authorized_keys` с ограничением на единственную команду:
+   ```
+   command="/root/deploy-finance-bot.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... github-actions-finance-bot
+   ```
+   Такой ключ нельзя использовать для входа в оболочку: что бы ни передали в `ssh`, выполнится только скрипт деплоя.
+4. Проверить ключ, ничего не деплоя: `ssh -i deploy_key root@<адрес> check` должно ответить `ok`. Любая другая команда, переданная этим ключом, запускает деплой (скрипт игнорирует, что именно ему передали).
+5. Приватную часть положить в секрет `SSH_PRIVATE_KEY` и удалить локальные копии.
+
+При изменении `deploy/deploy.sh` скопируйте новую версию на сервер вручную: автодеплой её не обновляет.
+
+Рекомендуется включить в GitHub защиту ветки `main` (Settings → Branches): обязательный статус `test` перед слиянием.
+
 ### Переход на версию с привычками и задачами
 
 До этой версии из-за ошибки разбора `DB_SYNCHRONIZE` автосинхронизация схемы TypeORM была включена всегда, даже при `false`. Теперь она действительно выключена, поэтому новые таблицы (`habits`, `habit_checkins`, `tasks`, `subscriptions`) и колонка `users.isPaused` создаются **только миграциями**. При первом деплое обязательно выполните `npm run migration:run:prod`.
