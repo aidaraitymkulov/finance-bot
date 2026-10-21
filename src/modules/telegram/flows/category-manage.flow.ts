@@ -235,7 +235,11 @@ export class CategoryManageFlow {
 
   async handleEditSelected(ctx: BotContext, userId: string, categoryCode: string) {
     const state = this.dialogStateService.get(userId);
-    if (!state || state.flow !== "category_manage" || state.step !== "category_manage_edit_select") {
+    if (
+      !state ||
+      state.flow !== "category_manage" ||
+      state.step !== "category_manage_edit_select"
+    ) {
       await ctx.answerCbQuery("Сначала выберите тип.");
       return;
     }

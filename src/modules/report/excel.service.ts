@@ -55,10 +55,7 @@ export class ExcelService {
     return Buffer.from(buffer);
   }
 
-  private createExpenseSheet(
-    workbook: ExcelJS.Workbook,
-    expenses: OperationForExport[],
-  ) {
+  private createExpenseSheet(workbook: ExcelJS.Workbook, expenses: OperationForExport[]) {
     const sheet = workbook.addWorksheet("Расходы");
 
     sheet.columns = [
@@ -82,10 +79,7 @@ export class ExcelService {
     this.addTotal(sheet, expenses, 3);
   }
 
-  private createIncomeSheet(
-    workbook: ExcelJS.Workbook,
-    incomes: OperationForExport[],
-  ) {
+  private createIncomeSheet(workbook: ExcelJS.Workbook, incomes: OperationForExport[]) {
     const sheet = workbook.addWorksheet("Доходы");
 
     sheet.columns = [
@@ -208,7 +202,11 @@ export class ExcelService {
     sheet.views = [{ state: "frozen", ySplit: 1 }];
   }
 
-  private addTotal(sheet: ExcelJS.Worksheet, operations: OperationForExport[], amountColumn: number) {
+  private addTotal(
+    sheet: ExcelJS.Worksheet,
+    operations: OperationForExport[],
+    amountColumn: number,
+  ) {
     if (operations.length === 0) {
       return;
     }

@@ -16,10 +16,7 @@ import {
   buildLast7DaysRange,
   buildTodayRange,
 } from "../../../common/utils/data-range.util";
-import {
-  formatCategoryStatsMessage,
-  formatSummaryMessage,
-} from "../telegram.formatter";
+import { formatCategoryStatsMessage, formatSummaryMessage } from "../telegram.formatter";
 import { getTelegramUser, replyWithMarkup } from "../telegram.helpers";
 import { parseCustomDateRange } from "../telegram.parsers";
 import type { BotContext } from "../telegram.helpers";
@@ -165,7 +162,9 @@ export class StatsFlow {
     if (periodType === "custom") {
       this.dialogStateService.set(userId, { flow: "stats", step: "stats_custom_period" });
       await ctx.answerCbQuery();
-      await ctx.reply("Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025");
+      await ctx.reply(
+        "Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025",
+      );
       return;
     }
 
@@ -193,7 +192,9 @@ export class StatsFlow {
         categoryCode: state.categoryCode,
       });
       await ctx.answerCbQuery();
-      await ctx.reply("Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025");
+      await ctx.reply(
+        "Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025",
+      );
       return;
     }
 

@@ -108,7 +108,9 @@ export class OperationFlow {
 
       this.dialogStateService.clear(userId);
       const typeLabel = formatOperationTypeLabel(state.type);
-      await ctx.reply(`${typeLabel} сохранен: ${state.amount.toFixed(2)} — ${category.displayName}`);
+      await ctx.reply(
+        `${typeLabel} сохранен: ${state.amount.toFixed(2)} — ${category.displayName}`,
+      );
       await replyWithMarkup(
         ctx,
         "Выберите действие:",

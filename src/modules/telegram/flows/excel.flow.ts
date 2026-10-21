@@ -67,7 +67,14 @@ export class ExcelFlow {
       return;
     }
 
-    await this.generateAndSendReport(ctx, userId, state.reportType, range.start, range.end, range.days);
+    await this.generateAndSendReport(
+      ctx,
+      userId,
+      state.reportType,
+      range.start,
+      range.end,
+      range.days,
+    );
   }
 
   async handlePeriodSelected(ctx: BotContext, userId: string, periodType: PeriodType) {
@@ -84,7 +91,9 @@ export class ExcelFlow {
         reportType: state.reportType,
       });
       await ctx.answerCbQuery();
-      await ctx.reply("Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025");
+      await ctx.reply(
+        "Введите период в формате дд.мм.гггг дд.мм.гггг\nПример: 01.01.2025 31.01.2025",
+      );
       return;
     }
 
@@ -101,17 +110,38 @@ export class ExcelFlow {
     switch (period) {
       case "today": {
         const range = buildTodayRange();
-        await this.generateAndSendReport(ctx, userId, reportType, range.start, range.end, range.days);
+        await this.generateAndSendReport(
+          ctx,
+          userId,
+          reportType,
+          range.start,
+          range.end,
+          range.days,
+        );
         return;
       }
       case "last7": {
         const range = buildLast7DaysRange();
-        await this.generateAndSendReport(ctx, userId, reportType, range.start, range.end, range.days);
+        await this.generateAndSendReport(
+          ctx,
+          userId,
+          reportType,
+          range.start,
+          range.end,
+          range.days,
+        );
         return;
       }
       case "month": {
         const range = buildCurrentMonthRange();
-        await this.generateAndSendReport(ctx, userId, reportType, range.start, range.end, range.days);
+        await this.generateAndSendReport(
+          ctx,
+          userId,
+          reportType,
+          range.start,
+          range.end,
+          range.days,
+        );
         return;
       }
       default:
@@ -137,7 +167,11 @@ export class ExcelFlow {
 
     try {
       const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
-      const operations = await this.reportService.getOperationsForExport(user, { start, end, days });
+      const operations = await this.reportService.getOperationsForExport(user, {
+        start,
+        end,
+        days,
+      });
 
       this.dialogStateService.clear(userId);
 
