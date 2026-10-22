@@ -1,0 +1,427 @@
+/*
+ * Colors come from the Telegram theme (--tg-theme-*, set by telegram-web-app.js), so the app
+ * follows the user's Telegram theme. Fallbacks are for a regular browser in local development.
+ */
+:root {
+  color-scheme: light;
+  --fallback-bg: #ffffff;
+  --fallback-secondary-bg: #f1f1f4;
+  --fallback-text: #0b0b0b;
+  --fallback-hint: #898781;
+  --fallback-accent: #2a78d6;
+  --fallback-separator: rgba(11, 11, 11, 0.1);
+  --positive: #006300;
+  --negative: #d03b3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --fallback-bg: #212121;
+    --fallback-secondary-bg: #0f0f0f;
+    --fallback-text: #ffffff;
+    --fallback-hint: #aaaaaa;
+    --fallback-accent: #3987e5;
+    --fallback-separator: rgba(255, 255, 255, 0.1);
+    --positive: #0ca30c;
+    --negative: #e66767;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --fallback-bg: #212121;
+  --fallback-secondary-bg: #0f0f0f;
+  --fallback-text: #ffffff;
+  --fallback-hint: #aaaaaa;
+  --fallback-accent: #3987e5;
+  --fallback-separator: rgba(255, 255, 255, 0.1);
+  --positive: #0ca30c;
+  --negative: #e66767;
+}
+
+:root {
+  --bg: var(--tg-theme-secondary-bg-color, var(--fallback-secondary-bg));
+  --card-bg: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, var(--fallback-bg)));
+  --text: var(--tg-theme-text-color, var(--fallback-text));
+  --hint: var(--tg-theme-hint-color, var(--fallback-hint));
+  --accent: var(--tg-theme-button-color, var(--fallback-accent));
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --separator: var(--tg-theme-section-separator-color, var(--fallback-separator));
+  --control-bg: color-mix(in srgb, var(--hint) 16%, transparent);
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.screen {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+.screen__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 12px;
+}
+
+.screen__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+/* Period picker */
+
+.period-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.segmented {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+
+.segmented__item {
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--hint);
+  font-weight: 500;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.segmented__item--active {
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.segmented--small .segmented__item {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.month-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.month-switcher__label {
+  font-weight: 600;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.icon-button:disabled {
+  color: var(--hint);
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Cards */
+
+.content,
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: opacity 0.15s;
+}
+
+.content--stale {
+  opacity: 0.6;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty {
+  margin: 8px 0;
+  color: var(--hint);
+}
+
+/* Summary */
+
+.summary__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--separator);
+}
+
+.summary__hero-value {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.summary__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tile__label {
+  color: var(--hint);
+  font-size: 13px;
+}
+
+.tile__hint {
+  color: var(--hint);
+  font-size: 13px;
+}
+
+.tile__value {
+  font-size: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tile__value--positive {
+  color: var(--positive);
+}
+
+.tile__value--negative {
+  color: var(--negative);
+}
+
+/* Category bars */
+
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bars__text {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.bars__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bars__value {
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bars__share {
+  display: inline-block;
+  min-width: 3.2em;
+  margin-left: 8px;
+  color: var(--hint);
+  font-weight: 400;
+  text-align: right;
+}
+
+.bars__track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--control-bg);
+  overflow: hidden;
+}
+
+.bars__fill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: 3px;
+  /* Validated series hue (see finance/chartColors.ts), not the theme's button color. */
+  background: var(--fallback-accent);
+}
+
+/* Daily chart */
+
+.chart {
+  margin: 0 -4px;
+}
+
+.chart-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--separator);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.chart-tooltip__label {
+  color: var(--hint);
+  font-size: 12px;
+}
+
+.chart-tooltip__value {
+  font-weight: 600;
+}
+
+/* Recent operations */
+
+.operations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.operations__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--separator);
+}
+
+.operations__row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.operations__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.operations__category {
+  font-weight: 500;
+}
+
+.operations__meta {
+  color: var(--hint);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operations__amount {
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.operations__amount--income {
+  color: var(--positive);
+}
+
+/* States */
+
+.skeleton {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--control-bg);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error p {
+  margin: 0 0 12px;
+}
+
+.button {
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}

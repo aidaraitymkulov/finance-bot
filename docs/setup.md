@@ -19,7 +19,8 @@
 | `DB_SYNCHRONIZE` | да | всегда `false`: схема меняется только миграциями |
 | `TELEGRAM_BOT_TOKEN` | да | токен бота |
 | `ALLOWED_TELEGRAM_USER_ID` | рекомендуется | числовой Telegram ID владельца (узнать можно у [@userinfobot](https://t.me/userinfobot)). Если не задан, ботом может пользоваться кто угодно |
-| `PORT` | нет | HTTP-порт Nest, по умолчанию `3000`. Боту HTTP не нужен, но порт должен быть свободен |
+| `PORT` | нет | HTTP-порт Nest, по умолчанию `3000`. На нём работают API и фронт Mini App |
+| `WEBAPP_URL` | нет | публичный `https://` адрес Mini App. Если задан, у бота появляется кнопка меню «📊 Дашборд» и работает `/dashboard`. См. [Mini App](webapp.md) |
 
 Часовой пояс через окружение не задаётся. Он зафиксирован в коде (`src/common/constants/time-zone.ts`, `Asia/Bishkek`).
 
@@ -44,6 +45,8 @@ LOG [NestApplication] Nest application successfully started
 ```
 
 Если порт 3000 занят (`EADDRINUSE`), запустите с другим: `PORT=3001 npm run start:dev`.
+
+Фронт Mini App запускается отдельно (`npm run dev:webapp`), подробнее в [Mini App → Разработка](webapp.md#разработка).
 
 ## Скрипты
 
@@ -75,6 +78,7 @@ npm run migration:revert:dev    # откатить последнюю
 ```bash
 git pull
 npm ci
+npm run build:webapp            # собирает фронт Mini App в webapp/dist
 npm run migration:run:prod      # собирает dist/ и применяет миграции; обязательно до перезапуска
 pm2 startOrReload ecosystem.config.js --env production
 ```

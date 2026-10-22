@@ -43,3 +43,12 @@ export const buildCustomRange = (startDate: Date, endDate: Date): PeriodRange =>
   const end = endOfDay(endDate);
   return { start, end, days: countDaysInclusive(start, end) };
 };
+
+/** Calendar month (`month` is 0-based). The current month ends today, like buildCurrentMonthRange. */
+export const buildMonthRange = (year: number, month: number): PeriodRange => {
+  const now = new Date();
+  if (year === now.getFullYear() && month === now.getMonth()) {
+    return buildCurrentMonthRange();
+  }
+  return buildCustomRange(new Date(year, month, 1), new Date(year, month + 1, 0));
+};

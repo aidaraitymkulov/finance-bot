@@ -32,13 +32,13 @@ Migrations live in `src/database/migrations/` and are hand-written (no `migratio
 
 ## Configuration
 
-Env files load in order `.env.${NODE_ENV}`, `.env.development`, `.env` (both in `app.module.ts` and `data-source.ts`). Vars: `DB_HOST/PORT/USER/PASSWORD/NAME`, `DB_SYNCHRONIZE` (keep `false`; schema via migrations), `TELEGRAM_BOT_TOKEN`, `ALLOWED_TELEGRAM_USER_ID`, `PORT`. Typed config is in `src/config/configuration.ts` (accessed as `configService.get("telegram")` / `get("database")`), transformed by `src/config/validation.ts`. Note `@nestjs/config` writes the transformed values back into `process.env`, so boolean env vars need an explicit `@Transform` there (implicit conversion makes `"false"` truthy).
+Env files load in order `.env.${NODE_ENV}`, `.env.development`, `.env` (both in `app.module.ts` and `data-source.ts`). Vars: `DB_HOST/PORT/USER/PASSWORD/NAME`, `DB_SYNCHRONIZE` (keep `false`; schema via migrations), `TELEGRAM_BOT_TOKEN`, `ALLOWED_TELEGRAM_USER_ID`, `PORT`, `WEBAPP_URL` (optional, https Mini App URL). Typed config is in `src/config/configuration.ts` (accessed as `configService.get("telegram")` / `get("database")`), transformed by `src/config/validation.ts`. Note `@nestjs/config` writes the transformed values back into `process.env`, so boolean env vars need an explicit `@Transform` there (implicit conversion makes `"false"` truthy).
 
 **Time zone**: `src/common/constants/time-zone.ts` pins `process.env.TZ` to `Asia/Bishkek` (UTC+6) and is the first import in `main.ts`. "Today", streaks, task due dates and cron jobs all use it. Local dates are `"YYYY-MM-DD"` strings (`common/utils/local-date.util.ts`), matching how TypeORM returns `date` columns — but raw query results (`getRawMany`) return `Date`, so format with `to_char` in SQL.
 
 ## Architecture
 
-Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `category`, `operation`, `report` (finance), `habit`, `task`, `subscription`. `telegram` is the only UI layer and depends on them. `scheduler` sends the cron notifications.
+Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `category`, `operation`, `report` (finance), `habit`, `task`, `subscription`. `telegram` (bot) and `webapp` (Mini App HTTP API) are the UI layers and depend on them. `scheduler` sends the cron notifications.
 
 **Telegram layer (`src/modules/telegram/`)**:
 
@@ -53,6 +53,8 @@ Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `cate
 - Shared finance period picker: `keyboards/period-select.keyboard.ts` (`today | last7 | month | custom`); custom ranges/dates are parsed by `telegram.parsers.ts`, ranges built in `common/utils/data-range.util.ts`.
 
 **Adding a feature** typically touches: a `DialogState` variant, a flow + Update class registered in `telegram.module.ts`, a section keyboard + entries in `CoreUpdate.handleMenuText` / the `onText` flow switch, and `getMenuKeyboardForFlow`.
+
+**Mini App** (`docs/webapp.md`): `webapp/` is a separate React + Vite + TS package (own `package.json`, not covered by root eslint/tsc/jest; `npm --prefix webapp run typecheck|build`, `npm run dev:webapp` on :5173 proxying `/api` to :3001). `src/modules/webapp/` is a second UI layer over the domain services: `/api/*` controllers guarded by `WebAppAuthGuard` (validates Telegram `initData` from `Authorization: tma <initData>` via HMAC in `auth/init-data.util.ts`, 24 h max age, `ALLOWED_TELEGRAM_USER_ID` only; `@WebAppUser()` gives the `UserEntity`), and `ServeStaticModule` serving `webapp/dist` when it exists. `WEBAPP_URL` (https) sets the bot menu button and `/dashboard` (`telegram/webapp-menu.service.ts`). Outside Telegram in dev, the Vite plugin in `webapp/vite.config.ts` serves signed test initData at `/__dev-init-data` to direct localhost requests only (it grants access to the owner's data — never expose it through a tunnel). Chart colors are fixed validated hexes (`webapp/src/finance/chartColors.ts`), not theme colors.
 
 **Scheduler** (`src/modules/scheduler/notification.service.ts`): `@nestjs/schedule` cron jobs in `APP_TIME_ZONE` — 09:00 morning digest (open tasks due today incl. overdue), 09:00 subscription reminders (charges 3 / 1 / 0 days away plus every unpaid past charge, daily until marked) and 22:00 habit poll (active habits not checked today). Sends via `@InjectBot()` to `user.telegramId`, skipping paused users and users other than `ALLOWED_TELEGRAM_USER_ID`; failures are logged per user. Next run times are logged at startup.
 

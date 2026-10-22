@@ -29,6 +29,7 @@ export class HelpFlow {
       "/categories — управление категориями",
       "/last — последние операции",
       "/excel — отчёт в Excel",
+      "/dashboard — дашборд с графиками (Mini App)",
       "",
       "/disable — отключить бота до /start",
       "/cancel — отменить текущую операцию",

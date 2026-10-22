@@ -1,6 +1,8 @@
 # compiled output
 /dist
 /node_modules
+/webapp/dist
+/webapp/node_modules
 /build
 /.claude
 
@@ -57,3 +59,4 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+/webapp/*.tsbuildinfo

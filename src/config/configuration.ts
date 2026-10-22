@@ -5,6 +5,8 @@ export const Configuration = () => ({
     allowedUserId: process.env.ALLOWED_TELEGRAM_USER_ID
       ? Number(process.env.ALLOWED_TELEGRAM_USER_ID)
       : undefined,
+    /** Public https URL of the Mini App; when set, it becomes the bot's menu button. */
+    webAppUrl: process.env.WEBAPP_URL || undefined,
   },
   database: {
     host: process.env.DB_HOST,

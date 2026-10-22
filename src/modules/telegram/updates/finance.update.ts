@@ -8,6 +8,7 @@ import { RatingFlow } from "../flows/rating.flow";
 import { LastFlow } from "../flows/last.flow";
 import { CategoryManageFlow } from "../flows/category-manage.flow";
 import { ExcelFlow } from "../flows/excel.flow";
+import { WebAppMenuService } from "../webapp-menu.service";
 import {
   BotContext,
   getCallbackParts,
@@ -24,7 +25,18 @@ export class FinanceUpdate {
     private readonly lastFlow: LastFlow,
     private readonly categoryManageFlow: CategoryManageFlow,
     private readonly excelFlow: ExcelFlow,
+    private readonly webAppMenuService: WebAppMenuService,
   ) {}
+
+  @Command("dashboard")
+  async onDashboard(@Ctx() ctx: BotContext) {
+    const keyboard = this.webAppMenuService.buildOpenKeyboard();
+    if (!keyboard) {
+      await ctx.reply("Дашборд не настроен: не задан WEBAPP_URL.");
+      return;
+    }
+    await ctx.reply("Графики и статистика по финансам:", keyboard);
+  }
 
   @Command("income")
   async onIncome(@Ctx() ctx: BotContext) {

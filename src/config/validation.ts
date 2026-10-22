@@ -1,5 +1,5 @@
 import { plainToInstance, Transform } from "class-transformer";
-import { IsBoolean, IsEnum, IsNumber, IsString } from "class-validator";
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString } from "class-validator";
 
 enum NodeEnv {
   Development = "development",
@@ -36,6 +36,10 @@ class EnvVariables {
 
   @IsNumber()
   ALLOWED_TELEGRAM_USER_ID: number;
+
+  @IsOptional()
+  @IsString()
+  WEBAPP_URL?: string;
 }
 
 export const validate = (config: Record<string, unknown>) => {

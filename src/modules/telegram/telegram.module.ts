@@ -28,6 +28,7 @@ import { TaskUpdate } from "./updates/task.update";
 import { SubscriptionModule } from "../subscription/subscription.module";
 import { SubscriptionFlow } from "./flows/subscription.flow";
 import { SubscriptionUpdate } from "./updates/subscription.update";
+import { WebAppMenuService } from "./webapp-menu.service";
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { SubscriptionUpdate } from "./updates/subscription.update";
     TaskUpdate,
     SubscriptionUpdate,
     TelegramService,
+    WebAppMenuService,
     OperationFlow,
     StatsFlow,
     RatingFlow,

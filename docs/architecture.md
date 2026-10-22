@@ -20,7 +20,9 @@ src/
     ├── task/                    # задачи
     ├── subscription/            # подписки, расчёт даты следующего списания
     ├── scheduler/               # cron-уведомления
-    └── telegram/                # всё взаимодействие с ботом
+    ├── telegram/                # всё взаимодействие с ботом
+    └── webapp/                  # REST API /api/* для Mini App и раздача webapp/dist
+webapp/                          # фронт Mini App (React + Vite), см. webapp.md
 ```
 
 ```
@@ -29,7 +31,10 @@ telegram ──┬──> finance (category, operation, report) ──┐
            ├──> task ───────────────────────────────────┤
            └──> subscription ───────────────────────────┘
 scheduler ───> habit, task, subscription, user
+webapp ────> report, user
 ```
+
+Mini App (`webapp`) — второй UI-слой рядом с `telegram`: HTTP API поверх тех же доменных сервисов. Подробно: [Mini App](webapp.md).
 
 `subscription` дополнительно зависит от `operation` и `category`: `SubscriptionService.markPaid` записывает оплату как расход.
 

@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Between, Repository } from "typeorm";
 import { OperationEntity } from "../operation/operation.entity";
 import { CategoryType } from "../category/category-type.enum";
 import { PeriodRange } from "../../common/types/period.type";
 import { UserEntity } from "../user/user.entity";
+import { APP_TIME_ZONE } from "../../common/constants/time-zone";
+import { addDays, toLocalDateString } from "../../common/utils/local-date.util";
 
 export interface SummaryReport {
   income: number;
@@ -24,6 +26,22 @@ export interface CategoryStats {
   total: number;
   count: number;
   avgPerDay: number;
+}
+
+export interface DailyTotals {
+  /** Local date "YYYY-MM-DD". */
+  date: string;
+  income: number;
+  expense: number;
+}
+
+export interface RecentOperation {
+  id: string;
+  createdAt: Date;
+  type: CategoryType;
+  category: string;
+  amount: number;
+  comment: string | null;
 }
 
 export interface OperationForExport {
@@ -138,6 +156,69 @@ export class ReportService {
       count,
       avgPerDay: total / days,
     };
+  }
+
+  /** Income/expense per local day of the range, including days without operations. */
+  async getDailyTotals(user: UserEntity, range: PeriodRange): Promise<DailyTotals[]> {
+    const rows = await this.operationRepository
+      .createQueryBuilder("operation")
+      .select("to_char(operation.createdAt AT TIME ZONE :tz, 'YYYY-MM-DD')", "date")
+      .addSelect(
+        "SUM(CASE WHEN operation.type = :incomeType THEN operation.amount ELSE 0 END)",
+        "income",
+      )
+      .addSelect(
+        "SUM(CASE WHEN operation.type = :expenseType THEN operation.amount ELSE 0 END)",
+        "expense",
+      )
+      .where("operation.userId = :userId", { userId: user.id })
+      .andWhere("operation.createdAt BETWEEN :start AND :end", {
+        start: range.start,
+        end: range.end,
+      })
+      .setParameters({
+        tz: APP_TIME_ZONE,
+        incomeType: CategoryType.INCOME,
+        expenseType: CategoryType.EXPENSE,
+      })
+      .groupBy("date")
+      .getRawMany<{ date: string; income: string | null; expense: string | null }>();
+
+    const byDate = new Map(rows.map((row) => [row.date, row]));
+    const result: DailyTotals[] = [];
+    const last = toLocalDateString(range.end);
+    for (let date = toLocalDateString(range.start); date <= last; date = addDays(date, 1)) {
+      const row = byDate.get(date);
+      result.push({
+        date,
+        income: row?.income ? Number(row.income) : 0,
+        expense: row?.expense ? Number(row.expense) : 0,
+      });
+    }
+    return result;
+  }
+
+  /** Newest operations of the range first. */
+  async getRecentOperations(
+    user: UserEntity,
+    range: PeriodRange,
+    limit: number,
+  ): Promise<RecentOperation[]> {
+    const operations = await this.operationRepository.find({
+      where: { user: { id: user.id }, createdAt: Between(range.start, range.end) },
+      relations: { category: true },
+      order: { createdAt: "DESC" },
+      take: limit,
+    });
+
+    return operations.map((op) => ({
+      id: op.id,
+      createdAt: op.createdAt,
+      type: op.type,
+      category: op.category.displayName,
+      amount: op.amount,
+      comment: op.comment,
+    }));
   }
 
   async getOperationsForExport(
