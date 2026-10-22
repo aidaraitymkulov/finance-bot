@@ -49,7 +49,7 @@ Telegram ──polling──> Telegraf
                              ├─ FinanceUpdate   /income /expense /stats ... + inline-кнопки финансов
                              ├─ HabitUpdate     /habits + habit_check, habit_del
                              ├─ TaskUpdate      /today /tasks + task_date, task_done, task_del
-                             └─ SubscriptionUpdate  /subs + sub_period, sub_del
+                             └─ SubscriptionUpdate  /subs + sub_period, sub_paid, sub_skip, sub_del
                                      │
                                      ▼
                                   flows/*.flow.ts ──> доменные сервисы ──> PostgreSQL
@@ -101,7 +101,7 @@ Callback data имеет формат `prefix:param[:param]` и ограниче
 | `stats_period:month`, `category:food`, `last_more:10` | `FinanceUpdate` |
 | `habit_check:<uuid>:done`, `habit_del:<uuid>` | `HabitUpdate` |
 | `task_date:wd5`, `task_done:<uuid>:today`, `task_del:<uuid>:week` | `TaskUpdate` |
-| `sub_period:monthly`, `sub_del:<uuid>`, `sub_paid:<uuid>:<YYYYMMDD>` | `SubscriptionUpdate` |
+| `sub_period:monthly`, `sub_del:<uuid>`, `sub_paid:<uuid>:<YYYYMMDD>:rem`, `sub_skip:<uuid>:<YYYYMMDD>:list` | `SubscriptionUpdate` |
 
 Правила:
 - в регулярном выражении `@Action` ограничивайте параметры: UUID задаётся как `[0-9a-f-]{36}`, режимы перечисляются явно (`(today|week)`). Так некорректный ввод не доходит до Postgres;
@@ -122,7 +122,7 @@ Callback data имеет формат `prefix:param[:param]` и ограниче
 | --- | --- | --- |
 | `morning-digest` | `0 9 * * *` | открытые задачи до сегодняшнего дня включительно (то есть с просроченными) и число активных привычек |
 | `habit-poll` | `0 22 * * *` | заголовок и по сообщению на каждую активную привычку без отметки за сегодня |
-| `subscription-reminders` | `0 9 * * *` | одно сообщение со списанием, до которого осталось 3, 1 или 0 дней; затем даты прошедших списаний сдвигаются на следующий период (`advanceOverdue`) |
+| `subscription-reminders` | `0 9 * * *` | одно сообщение: неотмеченные прошедшие списания («⚠️ Не оплачено», каждый день до отметки) и списания через 3, 1 или 0 дней. Даты не сдвигаются: это делают только кнопки «Оплачено» / «Пропустить» |
 
 - Все job'ы работают в `APP_TIME_ZONE`.
 - Отправка идёт через `@InjectBot()` на `user.telegramId`: для личного чата это и есть chat id.

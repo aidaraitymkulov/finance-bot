@@ -98,10 +98,10 @@ users ─┬─< operations >── categories
 | `amount` | `numeric(12,2)` | в коде приводится к `number`; валюта не хранится |
 | `period` | `varchar(16)` | `monthly` или `yearly` |
 | `billingDay` | `smallint` | день месяца (1–31), на который настроено списание |
-| `nextPaymentDate` | `date` | локальная дата ближайшего списания |
+| `nextPaymentDate` | `date` | локальная дата ближайшего **неотмеченного** списания; может быть в прошлом |
 | `createdAt` | `timestamptz` | |
 
-Индекс `IDX_subscriptions_user_next (userId, nextPaymentDate)`. После даты списания `nextPaymentDate` сдвигается на следующий период: ночью планировщиком (`advanceOverdue`) и при открытии списка (`getAll`). Кнопка «✅ Оплачено» (`SubscriptionService.markPaid`) сдвигает дату сразу и создаёт запись в `operations` (тип `EXPENSE`, категория с кодом `subscriptions`, `comment` = название). Сдвиг делается условным `UPDATE ... WHERE nextPaymentDate = <дата из кнопки>`, поэтому повторное нажатие не создаёт второй расход. Сдвиг считает `subscription/next-payment.util.ts` от `billingDay`, поэтому подписка с 31-м числом идёт 31.01 → 28.02 → 31.03, а не «застревает» на 28-м.
+Индекс `IDX_subscriptions_user_next (userId, nextPaymentDate)`. `nextPaymentDate` сдвигается на следующий период **только действием пользователя**, автоматически дата не двигается (иначе «прошло» не отличить от «оплачено»). Кнопка «⏭ Пропустить» (`SubscriptionService.skip`) просто сдвигает дату. Кнопка «✅ Оплачено» (`SubscriptionService.markPaid`) сдвигает дату и создаёт запись в `operations` (тип `EXPENSE`, категория с кодом `subscriptions`, `comment` = название). Сдвиг делается условным `UPDATE ... WHERE nextPaymentDate = <дата из кнопки>`, поэтому повторное нажатие не создаёт второй расход. При создании подписки прошедшая дата один раз переводится на ближайшую будущую (`nextPaymentOnOrAfter`). Сдвиг считает `subscription/next-payment.util.ts` от `billingDay`, поэтому подписка с 31-м числом идёт 31.01 → 28.02 → 31.03, а не «застревает» на 28-м.
 
 ## Даты
 

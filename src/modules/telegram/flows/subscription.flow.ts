@@ -19,9 +19,9 @@ const CREATE_ERRORS: Record<string, string> = {
   invalid_amount: "Неверная сумма. Введите положительное число, например 990 или 1250,50",
 };
 
-const PAID_ERRORS = {
+const PAYMENT_ERRORS = {
   not_found: "Подписка не найдена.",
-  already_paid: "Уже отмечено.",
+  already_paid: "Это списание уже отмечено.",
   no_category: "Категория «🔔 Подписки» не найдена. Перезапустите бота.",
 } as const;
 
@@ -130,26 +130,46 @@ export class SubscriptionFlow {
     await ctx.reply(view.text, { reply_markup: view.reply_markup });
   }
 
-  /** "✅ Оплачено" under a reminder: records the expense and drops the pressed button. */
-  async handlePaid(ctx: BotContext, subscriptionId: string, dateKey: string) {
+  /**
+   * "✅ Оплачено" (records the expense) or "⏭ Пропустить" (no expense): both move the subscription
+   * to the next period. Under a reminder the pressed row is removed; the list is re-rendered.
+   */
+  async handlePayment(
+    ctx: BotContext,
+    action: "paid" | "skip",
+    subscriptionId: string,
+    dateKey: string,
+    source: string | undefined,
+  ) {
     const user = await this.resolveUser(ctx);
     if (!user) {
       return;
     }
 
     const expectedDate = `${dateKey.slice(0, 4)}-${dateKey.slice(4, 6)}-${dateKey.slice(6, 8)}`;
-    const result = await this.subscriptionService.markPaid(user, subscriptionId, expectedDate);
+    const result =
+      action === "paid"
+        ? await this.subscriptionService.markPaid(user, subscriptionId, expectedDate)
+        : await this.subscriptionService.skip(user, subscriptionId, expectedDate);
+    const done = "paid" in result ? result.paid : result.skipped;
 
-    if (!result.paid || !result.subscription) {
-      await ctx.answerCbQuery(PAID_ERRORS[result.reason ?? "not_found"]);
-      if (result.reason === "already_paid") {
-        await this.removePaidButton(ctx);
+    if (done) {
+      await ctx.answerCbQuery(
+        action === "paid" ? "Записано в расходы ✅" : "Списание пропущено ⏭",
+      );
+    } else {
+      await ctx.answerCbQuery(PAYMENT_ERRORS[result.reason ?? "not_found"]);
+      if (result.reason === "no_category") {
+        return;
       }
-      return;
     }
 
-    await ctx.answerCbQuery("Записано в расходы ✅");
-    await this.removePaidButton(ctx);
+    if (source === "list") {
+      const view = await this.buildListView(user);
+      await editMessageSafe(ctx, view.text, view.reply_markup);
+    } else {
+      await this.removePressedRow(ctx);
+    }
   }
 
   async handleDelete(ctx: BotContext, subscriptionId: string) {
@@ -193,13 +213,14 @@ export class SubscriptionFlow {
     await ctx.reply(
       `Подписка «${result.subscription.name}» добавлена. ` +
         `Ближайшее списание: ${formatDayLabel(result.subscription.nextPaymentDate)}.\n` +
-        "Напомню за 3 дня, за 1 день и в день списания в 09:00.",
+        "Напомню за 3 дня, за 1 день и в день списания в 09:00. " +
+        "Пока не отметите «✅ Оплачено» или «⏭ Пропустить», буду напоминать каждое утро.",
     );
     await this.showMenu(ctx);
   }
 
-  /** Removes the button that was just pressed, keeping the other subscriptions' buttons. */
-  private async removePaidButton(ctx: BotContext) {
+  /** Removes the row of the button that was just pressed, keeping other subscriptions' rows. */
+  private async removePressedRow(ctx: BotContext) {
     const query = ctx.callbackQuery;
     const message = query?.message;
     if (!query || !("data" in query) || !message || !("text" in message)) {
@@ -215,7 +236,7 @@ export class SubscriptionFlow {
 
   private async buildListView(user: UserEntity) {
     const today = todayLocalDate();
-    return buildSubscriptionListView(await this.subscriptionService.getAll(user, today), today);
+    return buildSubscriptionListView(await this.subscriptionService.getAll(user), today);
   }
 
   private async resolveUser(ctx: BotContext): Promise<UserEntity | null> {

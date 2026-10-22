@@ -19,13 +19,26 @@ export class SubscriptionUpdate {
     );
   }
 
-  @Action(/^sub_paid:([0-9a-f-]{36}):(\d{8})$/)
+  // The source suffix is optional: reminders sent before it existed end at the date.
+  @Action(/^sub_paid:([0-9a-f-]{36}):(\d{8})(:(rem|list))?$/)
   async onSubPaid(@Ctx() ctx: BotContext) {
     await handleCallbackParams(
       ctx,
       "Не удалось определить подписку.",
-      (_userId, [id, dateKey]) => this.subscriptionFlow.handlePaid(ctx, id, dateKey),
+      (_userId, [id, dateKey, source]) =>
+        this.subscriptionFlow.handlePayment(ctx, "paid", id, dateKey, source),
       2,
+    );
+  }
+
+  @Action(/^sub_skip:([0-9a-f-]{36}):(\d{8}):(rem|list)$/)
+  async onSubSkip(@Ctx() ctx: BotContext) {
+    await handleCallbackParams(
+      ctx,
+      "Не удалось определить подписку.",
+      (_userId, [id, dateKey, source]) =>
+        this.subscriptionFlow.handlePayment(ctx, "skip", id, dateKey, source),
+      3,
     );
   }
 

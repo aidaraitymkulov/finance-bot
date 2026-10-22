@@ -16,8 +16,14 @@ const formatAmount = (value: number) => amountFormat.format(value);
 const truncate = (value: string, length: number) =>
   value.length > length ? `${value.slice(0, length - 1)}…` : value;
 
-/** 0 -> "сегодня", 1 -> "завтра", 4 -> "через 4 дня" */
+/** Where a payment button was pressed: under a 09:00 reminder or in the subscription list. */
+export type SubscriptionButtonSource = "rem" | "list";
+
+/** 0 -> "сегодня", 1 -> "завтра", 4 -> "через 4 дня", -2 -> "не оплачено, 2 дня назад" */
 const formatDaysLeft = (days: number) => {
+  if (days < 0) {
+    return `не оплачено, ${-days} ${pluralizeRu(-days, ["день", "дня", "дней"])} назад`;
+  }
   if (days === 0) {
     return "сегодня";
   }
@@ -28,7 +34,7 @@ const formatDaysLeft = (days: number) => {
 };
 
 const formatLine = (item: SubscriptionEntity, today: string) =>
-  `• ${item.name} — ${formatAmount(item.amount)} / ${PERIOD_SHORT[item.period]} — ` +
+  `${item.nextPaymentDate < today ? "⚠️" : "•"} ${item.name} — ${formatAmount(item.amount)} / ${PERIOD_SHORT[item.period]} — ` +
   `${formatShortDate(item.nextPaymentDate)} (${formatDaysLeft(daysUntil(item.nextPaymentDate, today))})`;
 
 /** Yearly subscriptions count as 1/12 of their price. */
@@ -42,6 +48,18 @@ export const buildPeriodKeyboard = () =>
       Markup.button.callback("Год", "sub_period:yearly"),
     ],
   ]);
+
+const dateKey = (item: SubscriptionEntity) => item.nextPaymentDate.replaceAll("-", "");
+
+/** "✅ Оплачено" / "⏭ Пропустить" for the charge currently due (`nextPaymentDate`). */
+const buildPaymentButtons = (
+  item: SubscriptionEntity,
+  source: SubscriptionButtonSource,
+  paidLabel: string,
+) => [
+  Markup.button.callback(paidLabel, `sub_paid:${item.id}:${dateKey(item)}:${source}`),
+  Markup.button.callback("⏭ Пропустить", `sub_skip:${item.id}:${dateKey(item)}:${source}`),
+];
 
 /** `items` are expected soonest-first (see SubscriptionService.getAll). */
 export const buildSubscriptionListView = (
@@ -58,39 +76,59 @@ export const buildSubscriptionListView = (
     ...items.map((item) => formatLine(item, today)),
     "",
     `В месяц ≈ ${formatAmount(monthlyTotal(items))}`,
+    "",
+    "✅ — оплачено (запишу в расходы), ⏭ — пропустить списание, 🗑 — удалить подписку.",
   ];
 
   const reply_markup = Markup.inlineKeyboard(
     items.map((item) => [
-      Markup.button.callback(`🗑 ${truncate(item.name, BUTTON_NAME_LENGTH)}`, `sub_del:${item.id}`),
+      ...buildPaymentButtons(item, "list", `✅ ${truncate(item.name, BUTTON_NAME_LENGTH)}`),
+      Markup.button.callback("🗑", `sub_del:${item.id}`),
     ]),
   ).reply_markup;
 
   return { text: lines.join("\n"), reply_markup };
 };
 
-/** `items` are the subscriptions that fall on a reminder day (see SubscriptionService.getDueForReminder). */
+/**
+ * `items` come from SubscriptionService.getDueForReminder: unpaid past charges and charges
+ * 3 / 1 / 0 days away.
+ */
 export const buildSubscriptionReminderView = (
   items: SubscriptionEntity[],
   today: string,
 ): MessageView => {
-  const lines = ["🔔 Скоро списания:", ""];
-  for (const item of items) {
-    const days = daysUntil(item.nextPaymentDate, today);
-    const icon = days === 0 ? "💳" : "•";
-    lines.push(
-      `${icon} ${item.name} — ${formatAmount(item.amount)} — ${formatDaysLeft(days)} ` +
-        `(${formatDayLabel(item.nextPaymentDate)})`,
-    );
+  const unpaid = items.filter((item) => item.nextPaymentDate < today);
+  const upcoming = items.filter((item) => item.nextPaymentDate >= today);
+
+  const lines: string[] = [];
+  if (unpaid.length > 0) {
+    lines.push("⚠️ Не оплачено:", "");
+    for (const item of unpaid) {
+      lines.push(
+        `• ${item.name} — ${formatAmount(item.amount)} — с ${formatDayLabel(item.nextPaymentDate)}`,
+      );
+    }
+  }
+  if (upcoming.length > 0) {
+    if (lines.length > 0) {
+      lines.push("");
+    }
+    lines.push("🔔 Скоро списания:", "");
+    for (const item of upcoming) {
+      const days = daysUntil(item.nextPaymentDate, today);
+      const icon = days === 0 ? "💳" : "•";
+      lines.push(
+        `${icon} ${item.name} — ${formatAmount(item.amount)} — ${formatDaysLeft(days)} ` +
+          `(${formatDayLabel(item.nextPaymentDate)})`,
+      );
+    }
   }
 
   const reply_markup = Markup.inlineKeyboard(
-    items.map((item) => [
-      Markup.button.callback(
-        `✅ Оплачено: ${truncate(item.name, BUTTON_NAME_LENGTH)}`,
-        `sub_paid:${item.id}:${item.nextPaymentDate.replaceAll("-", "")}`,
-      ),
-    ]),
+    [...unpaid, ...upcoming].map((item) =>
+      buildPaymentButtons(item, "rem", `✅ Оплачено: ${truncate(item.name, BUTTON_NAME_LENGTH)}`),
+    ),
   ).reply_markup;
 
   return { text: lines.join("\n"), reply_markup };

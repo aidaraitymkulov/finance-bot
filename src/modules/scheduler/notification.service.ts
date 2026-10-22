@@ -59,7 +59,7 @@ export class NotificationService implements OnApplicationBootstrap {
     });
   }
 
-  /** Reminds 3 days, 1 day and 0 days before a charge, then moves past charge dates forward. */
+  /** Reminds 3 days, 1 day and 0 days before a charge, and daily about unpaid past charges. */
   @Cron("0 9 * * *", { name: SUBSCRIPTION_REMINDER_JOB, timeZone: APP_TIME_ZONE })
   async sendSubscriptionReminders() {
     const today = todayLocalDate();
@@ -75,8 +75,6 @@ export class NotificationService implements OnApplicationBootstrap {
         reply_markup: view.reply_markup,
       });
     });
-
-    await this.subscriptionService.advanceOverdue(today);
   }
 
   @Cron("0 22 * * *", { name: HABIT_POLL_JOB, timeZone: APP_TIME_ZONE })

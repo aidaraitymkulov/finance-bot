@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Between, LessThan, Repository } from "typeorm";
+import { LessThanOrEqual, Repository } from "typeorm";
 import { SubscriptionEntity } from "./subscription.entity";
 import { UserEntity } from "../user/user.entity";
 import { addDays, fromLocalDateString } from "../../common/utils/local-date.util";
@@ -74,49 +74,33 @@ export class SubscriptionService {
     return Number.isFinite(amount) && amount > 0 && amount <= MAX_AMOUNT ? null : "invalid_amount";
   }
 
-  /** All subscriptions of the user, soonest charge first. Past charge dates are moved forward. */
-  async getAll(user: UserEntity, today: string): Promise<SubscriptionEntity[]> {
-    const subscriptions = await this.subscriptionRepository.find({
+  /**
+   * All subscriptions of the user, soonest charge first (unpaid past charges come first).
+   * Dates are never moved automatically: only `markPaid` / `skip` move a subscription forward.
+   */
+  getAll(user: UserEntity): Promise<SubscriptionEntity[]> {
+    return this.subscriptionRepository.find({
       where: { user: { id: user.id } },
       order: { nextPaymentDate: "ASC", createdAt: "ASC" },
     });
-
-    const stale = subscriptions.filter((item) => item.nextPaymentDate < today);
-    if (stale.length === 0) {
-      return subscriptions;
-    }
-
-    SubscriptionService.rollForward(stale, today);
-    await this.subscriptionRepository.save(stale);
-    return subscriptions.sort(
-      (a, b) =>
-        a.nextPaymentDate.localeCompare(b.nextPaymentDate) ||
-        a.createdAt.getTime() - b.createdAt.getTime(),
-    );
   }
 
-  /** Subscriptions that are `REMINDER_DAYS_BEFORE` days away from their charge date. */
+  /**
+   * Subscriptions for the 09:00 reminder: charges `REMINDER_DAYS_BEFORE` days away, plus every
+   * unpaid past charge (reminded daily until the user taps "Оплачено" or "Пропустить").
+   */
   async getDueForReminder(user: UserEntity, today: string): Promise<SubscriptionEntity[]> {
     const upcoming = await this.subscriptionRepository.find({
       where: {
         user: { id: user.id },
-        nextPaymentDate: Between(today, addDays(today, Math.max(...REMINDER_DAYS_BEFORE))),
+        nextPaymentDate: LessThanOrEqual(addDays(today, Math.max(...REMINDER_DAYS_BEFORE))),
       },
       order: { nextPaymentDate: "ASC", createdAt: "ASC" },
     });
-    return upcoming.filter((item) =>
-      REMINDER_DAYS_BEFORE.includes(daysUntil(item.nextPaymentDate, today)),
-    );
-  }
-
-  /** Moves every subscription whose charge date has passed to its next billing date. */
-  async advanceOverdue(today: string): Promise<number> {
-    const stale = await this.subscriptionRepository.find({
-      where: { nextPaymentDate: LessThan(today) },
+    return upcoming.filter((item) => {
+      const days = daysUntil(item.nextPaymentDate, today);
+      return days < 0 || REMINDER_DAYS_BEFORE.includes(days);
     });
-    SubscriptionService.rollForward(stale, today);
-    await this.subscriptionRepository.save(stale);
-    return stale.length;
   }
 
   /**
@@ -132,9 +116,7 @@ export class SubscriptionService {
     subscription?: SubscriptionEntity;
     reason?: "not_found" | "already_paid" | "no_category";
   }> {
-    const subscription = await this.subscriptionRepository.findOne({
-      where: { id: subscriptionId, user: { id: user.id } },
-    });
+    const subscription = await this.findOwned(user, subscriptionId);
     if (!subscription) {
       return { paid: false, reason: "not_found" };
     }
@@ -147,12 +129,7 @@ export class SubscriptionService {
       return { paid: false, reason: "no_category" };
     }
 
-    // Conditional update: only one of several concurrent taps can move the date.
-    const moved = await this.subscriptionRepository.update(
-      { id: subscription.id, nextPaymentDate: expectedDate },
-      { nextPaymentDate: addPeriod(expectedDate, subscription.period, subscription.billingDay) },
-    );
-    if (!moved.affected) {
+    if (!(await this.advance(subscription, expectedDate))) {
       return { paid: false, reason: "already_paid" };
     }
 
@@ -175,10 +152,24 @@ export class SubscriptionService {
     return { paid: true, subscription };
   }
 
+  /** Moves the charge due on `expectedDate` to the next period without recording an expense. */
+  async skip(
+    user: UserEntity,
+    subscriptionId: string,
+    expectedDate: string,
+  ): Promise<{ skipped: boolean; reason?: "not_found" | "already_paid" }> {
+    const subscription = await this.findOwned(user, subscriptionId);
+    if (!subscription) {
+      return { skipped: false, reason: "not_found" };
+    }
+    if (!(await this.advance(subscription, expectedDate))) {
+      return { skipped: false, reason: "already_paid" };
+    }
+    return { skipped: true };
+  }
+
   async delete(user: UserEntity, subscriptionId: string): Promise<boolean> {
-    const subscription = await this.subscriptionRepository.findOne({
-      where: { id: subscriptionId, user: { id: user.id } },
-    });
+    const subscription = await this.findOwned(user, subscriptionId);
     if (!subscription) {
       return false;
     }
@@ -186,14 +177,21 @@ export class SubscriptionService {
     return true;
   }
 
-  private static rollForward(subscriptions: SubscriptionEntity[], today: string) {
-    for (const item of subscriptions) {
-      item.nextPaymentDate = nextPaymentOnOrAfter(
-        item.nextPaymentDate,
-        item.period,
-        item.billingDay,
-        today,
-      );
-    }
+  private findOwned(user: UserEntity, subscriptionId: string) {
+    return this.subscriptionRepository.findOne({
+      where: { id: subscriptionId, user: { id: user.id } },
+    });
+  }
+
+  /**
+   * Conditional update: moves the date one period forward only if it still equals `expectedDate`,
+   * so only one of several taps (or concurrent taps) on the same charge succeeds.
+   */
+  private async advance(subscription: SubscriptionEntity, expectedDate: string) {
+    const moved = await this.subscriptionRepository.update(
+      { id: subscription.id, nextPaymentDate: expectedDate },
+      { nextPaymentDate: addPeriod(expectedDate, subscription.period, subscription.billingDay) },
+    );
+    return Boolean(moved.affected);
   }
 }
