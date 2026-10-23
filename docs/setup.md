@@ -89,8 +89,11 @@ pm2 startOrReload ecosystem.config.js --env production
 
 Workflow `.github/workflows/ci-cd.yml`:
 
-- на каждый pull request в `main` и на каждый push в `main` запускается job `test`: `npm ci`, `npm run lint`, `npm test`, `npm run build`;
-- после успешного push в `main` запускается job `deploy`: заходит на сервер по SSH и выполняет те же шаги, что в разделе выше: fetch + `reset --hard origin/main`, `npm ci`, `npm run migration:run:prod`, `pm2 startOrReload`, затем проверяет, что процесс остался `online`. Команды написаны прямо в workflow. Если сборка или миграция упали, бот продолжает работать на прежнем коде.
+- на каждый pull request в `main` и на каждый push в `main` запускается job `test`: `npm ci`, `npm run lint`, `npm test`, `npm run build` и `npm run build:webapp` (сборка фронта Mini App);
+- после успешного push в `main` запускается job `deploy`. Он работает по SSH тремя шагами, команды написаны прямо в workflow:
+  1. **Обновление и миграции:** fetch + `reset --hard origin/main`, `npm ci`, `npm run migration:run:prod`. Если сборка или миграция упали, деплой останавливается, а бот продолжает работать на прежнем коде;
+  2. **Загрузка Mini App:** фронт собран в GitHub Actions (на сервере мало памяти) и передаётся архивом в `webapp/dist.new`. Nest проверяет `webapp/dist` при старте, поэтому фронт должен лежать на месте до перезапуска;
+  3. **Перезапуск:** `webapp/dist.new` заменяет `webapp/dist`, `pm2 startOrReload`, через 8 секунд проверка, что процесс остался `online`.
 
 **Секреты репозитория** (Settings → Secrets and variables → Actions):
 

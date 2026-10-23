@@ -22,7 +22,7 @@ npx jest path/to/file.spec.ts   # single test file (add -t "name" for a single t
 
 ### CI/CD
 
-`.github/workflows/ci-cd.yml`: PRs and pushes to `main` run lint + test + build; a push to `main` then deploys over SSH with the same steps as the manual deploy (commands are inline in the workflow). Setup and secrets: `docs/setup.md`.
+`.github/workflows/ci-cd.yml`: PRs and pushes to `main` run lint + test + build (backend and `build:webapp`); a push to `main` then deploys over SSH (commands are inline in the workflow): update + migrate, upload the Mini App built in CI to `webapp/dist` (the server is too small to build it, and Nest checks for `webapp/dist` at startup), restart via pm2. Setup and secrets: `docs/setup.md`.
 
 ### Migrations
 
