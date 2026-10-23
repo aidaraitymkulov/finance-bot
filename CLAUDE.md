@@ -20,6 +20,10 @@ npx jest path/to/file.spec.ts   # single test file (add -t "name" for a single t
 
 `npm run lint` and `npm test` are expected to pass cleanly. There are no e2e tests (booting `AppModule` would connect to Postgres and start Telegram polling).
 
+### CI/CD
+
+`.github/workflows/ci-cd.yml`: PRs and pushes to `main` run lint + test + build (backend and `build:webapp`); a push to `main` then deploys over SSH (commands are inline in the workflow): update + migrate, upload the Mini App built in CI to `webapp/dist` (the server is too small to build it, and Nest checks for `webapp/dist` at startup), restart via pm2. Setup and secrets: `docs/setup.md`.
+
 ### Migrations
 
 Migration scripts **build first** and run against `dist/database/data-source.js`, so migrations must compile. `:dev` / `:prod` suffixes pick `NODE_ENV`; unsuffixed variants default to dev.

@@ -85,6 +85,38 @@ pm2 startOrReload ecosystem.config.js --env production
 
 Запускайте **ровно один экземпляр**. Второй процесс с тем же токеном вызовет `409 Conflict`, а уведомления по расписанию придут дважды.
 
+### CI/CD (GitHub Actions)
+
+Workflow `.github/workflows/ci-cd.yml`:
+
+- на каждый pull request в `main` и на каждый push в `main` запускается job `test`: `npm ci`, `npm run lint`, `npm test`, `npm run build` и `npm run build:webapp` (сборка фронта Mini App);
+- после успешного push в `main` запускается job `deploy`. Он работает по SSH тремя шагами, команды написаны прямо в workflow:
+  1. **Обновление и миграции:** fetch + `reset --hard origin/main`, `npm ci`, `npm run migration:run:prod`. Если сборка или миграция упали, деплой останавливается, а бот продолжает работать на прежнем коде;
+  2. **Загрузка Mini App:** фронт собран в GitHub Actions (на сервере мало памяти) и передаётся архивом в `webapp/dist.new`. Nest проверяет `webapp/dist` при старте, поэтому фронт должен лежать на месте до перезапуска;
+  3. **Перезапуск:** `webapp/dist.new` заменяет `webapp/dist`, `pm2 startOrReload`, через 8 секунд проверка, что процесс остался `online`.
+
+**Секреты репозитория** (Settings → Secrets and variables → Actions):
+
+| Секрет | Значение |
+| --- | --- |
+| `SSH_HOST` | адрес сервера |
+| `SSH_USER` | пользователь на сервере |
+| `SSH_PRIVATE_KEY` | приватный ключ, созданный только для деплоя |
+| `SSH_KNOWN_HOSTS` | вывод `ssh-keyscan -t ed25519 <адрес>` (закрепляет отпечаток сервера) |
+
+**Одноразовая настройка сервера.**
+
+1. Создать отдельный ключ: `ssh-keygen -t ed25519 -N "" -f deploy_key -C github-actions-finance-bot`.
+2. Добавить публичную часть (`deploy_key.pub`) в `~/.ssh/authorized_keys` пользователя на сервере.
+3. Проверить вход: `ssh -i deploy_key <пользователь>@<адрес> echo ok`.
+4. Приватную часть положить в секрет `SSH_PRIVATE_KEY` и удалить локальные копии.
+
+Ключ даёт полный доступ пользователю, под которым деплоится бот (на сервере это `root`, потому что pm2-демон запущен от него). Не используйте для этого личный ключ и не переиспользуйте деплойный ключ для других сервисов.
+
+Путь `/var/www/finance-bot` и имя процесса `finance-bot` прописаны в workflow.
+
+Рекомендуется включить в GitHub защиту ветки `main` (Settings → Branches): обязательный статус `test` перед слиянием.
+
 ### Переход на версию с привычками и задачами
 
 До этой версии из-за ошибки разбора `DB_SYNCHRONIZE` автосинхронизация схемы TypeORM была включена всегда, даже при `false`. Теперь она действительно выключена, поэтому новые таблицы (`habits`, `habit_checkins`, `tasks`, `subscriptions`) и колонка `users.isPaused` создаются **только миграциями**. При первом деплое обязательно выполните `npm run migration:run:prod`.

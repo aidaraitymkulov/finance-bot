@@ -1,0 +1,138 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  # A newer push to a PR replaces the old run; deploys on main are queued, never cancelled mid-way.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            webapp/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      # The server is small, so the Mini App is built here and shipped to it ready-made.
+      - run: npm run build:webapp
+
+      - name: Save the built Mini App for the deploy job
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp-dist
+          path: webapp/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: webapp-dist
+          path: webapp-dist
+
+      - name: Configure SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONFIG
+          Host deploy
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          CONFIG
+
+      # The running bot keeps working on its already loaded code until the restart step. If
+      # the build or a migration fails, `set -e` stops the deploy here.
+      - name: Update code and migrate
+        run: |
+          ssh deploy 'bash -s' <<'EOF'
+          set -euo pipefail
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+
+          # Two deploys at once would race on node_modules and dist/.
+          exec 9>/tmp/finance-bot-deploy.lock
+          flock -n 9 || { echo "Another deploy is running"; exit 1; }
+
+          cd /var/www/finance-bot
+          git fetch --quiet origin main
+          git reset --hard origin/main
+          git log --oneline -1
+
+          npm ci --no-audit --no-fund
+
+          # Builds dist/ and applies pending migrations.
+          npm run migration:run:prod
+          EOF
+
+      # Nest looks for webapp/dist at startup, so it has to be in place before the restart.
+      - name: Upload the Mini App
+        run: |
+          tar -czf - -C webapp-dist . | ssh deploy '
+            set -e
+            rm -rf /var/www/finance-bot/webapp/dist.new
+            mkdir -p /var/www/finance-bot/webapp/dist.new
+            tar -xzf - -C /var/www/finance-bot/webapp/dist.new
+            test -f /var/www/finance-bot/webapp/dist.new/index.html
+          '
+
+      - name: Restart the bot
+        run: |
+          ssh deploy 'bash -s' <<'EOF'
+          set -euo pipefail
+          export NVM_DIR="$HOME/.nvm"
+          . "$NVM_DIR/nvm.sh"
+
+          cd /var/www/finance-bot
+          rm -rf webapp/dist
+          mv webapp/dist.new webapp/dist
+
+          pm2 startOrReload ecosystem.config.js --env production --update-env
+          pm2 save --force > /dev/null
+
+          # pm2 says "online" even for a process that crashes a second later, so look again.
+          sleep 8
+          status=$(pm2 jlist | node -e '
+            const apps = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const app = apps.find((item) => item.name === "finance-bot");
+            process.stdout.write(app ? app.pm2_env.status : "missing");
+          ')
+          if [ "$status" != "online" ]; then
+            echo "Bot status is '$status' after restart; last log lines:"
+            pm2 logs finance-bot --lines 30 --nostream || true
+            exit 1
+          fi
+          echo "Deployed, bot is online"
+          EOF
