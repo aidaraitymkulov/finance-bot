@@ -17,6 +17,7 @@ import { ExcelFlow } from "../flows/excel.flow";
 import { HabitFlow } from "../flows/habit.flow";
 import { TaskFlow } from "../flows/task.flow";
 import { SubscriptionFlow } from "../flows/subscription.flow";
+import { OperationEditFlow } from "../flows/operation-edit.flow";
 import { DebtFlow } from "../flows/debt.flow";
 import { DEBTS_MENU_BUTTONS } from "../keyboards/debts-menu.keyboard";
 import { DebtKind } from "../../debt/debt-kind.enum";
@@ -51,6 +52,7 @@ export class CoreUpdate {
     private readonly taskFlow: TaskFlow,
     private readonly subscriptionFlow: SubscriptionFlow,
     private readonly debtFlow: DebtFlow,
+    private readonly operationEditFlow: OperationEditFlow,
   ) {}
 
   @Start()
@@ -141,6 +143,12 @@ export class CoreUpdate {
       return;
     }
 
+    if (text === DEBTS_MENU_BUTTONS.toFinance) {
+      this.dialogStateService.clear(userId);
+      await this.showFinanceMenu(ctx);
+      return;
+    }
+
     const state = this.dialogStateService.get(userId);
     if (!state) {
       await this.handleMenuText(ctx, userId, text);
@@ -183,17 +191,16 @@ export class CoreUpdate {
       case "debt":
         await this.debtFlow.handleText(ctx, userId, text, state);
         return;
+      case "operation_edit":
+        await this.operationEditFlow.handleText(ctx, userId, text, state);
+        return;
     }
   }
 
   private async handleMenuText(ctx: BotContext, userId: string, text: string) {
     switch (text) {
       case MAIN_MENU_BUTTONS.finance:
-        await replyWithMarkup(
-          ctx,
-          "Раздел «Финансы». Выберите действие:",
-          this.telegramService.getFinanceMenuKeyboard().reply_markup,
-        );
+        await this.showFinanceMenu(ctx);
         return;
       case MAIN_MENU_BUTTONS.tasks:
         await this.taskFlow.showMenu(ctx);
@@ -203,9 +210,6 @@ export class CoreUpdate {
         return;
       case MAIN_MENU_BUTTONS.subscriptions:
         await this.subscriptionFlow.showMenu(ctx);
-        return;
-      case MAIN_MENU_BUTTONS.debts:
-        await this.debtFlow.showMenu(ctx);
         return;
       case MAIN_MENU_BUTTONS.help:
         await this.helpFlow.sendHelp(ctx);
@@ -234,6 +238,12 @@ export class CoreUpdate {
         return;
       case FINANCE_MENU_BUTTONS.excel:
         await this.excelFlow.start(ctx, userId);
+        return;
+      case FINANCE_MENU_BUTTONS.debts:
+        await this.debtFlow.showMenu(ctx);
+        return;
+      case DEBTS_MENU_BUTTONS.toFinance:
+        await this.showFinanceMenu(ctx);
         return;
 
       case HABITS_MENU_BUTTONS.add:
@@ -298,6 +308,14 @@ export class CoreUpdate {
       ctx,
       "Выберите действие:",
       this.telegramService.getMenuKeyboardForFlow(state?.flow).reply_markup,
+    );
+  }
+
+  private async showFinanceMenu(ctx: BotContext) {
+    await replyWithMarkup(
+      ctx,
+      "Раздел «Финансы». Выберите действие:",
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
     );
   }
 

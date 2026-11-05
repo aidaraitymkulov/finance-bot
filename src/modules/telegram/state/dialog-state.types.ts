@@ -16,6 +16,11 @@ export type OperationDialogState =
   | { flow: "operation"; step: "split_amount"; operationId: string; total: number }
   | { flow: "operation"; step: "split_person"; operationId: string; shared: number };
 
+export type OperationEditDialogState =
+  | { flow: "operation_edit"; step: "edit_amount"; operationId: string }
+  | { flow: "operation_edit"; step: "edit_comment"; operationId: string }
+  | { flow: "operation_edit"; step: "edit_category"; operationId: string };
+
 export type StatsDialogState =
   | { flow: "stats"; step: "stats_mode" }
   | { flow: "stats"; step: "stats_period" }
@@ -83,6 +88,7 @@ export type DebtDialogState =
 
 export type DialogState =
   | OperationDialogState
+  | OperationEditDialogState
   | StatsDialogState
   | RatingDialogState
   | CategoryManageDialogState
