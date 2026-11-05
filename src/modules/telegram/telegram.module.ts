@@ -28,6 +28,9 @@ import { TaskUpdate } from "./updates/task.update";
 import { SubscriptionModule } from "../subscription/subscription.module";
 import { SubscriptionFlow } from "./flows/subscription.flow";
 import { SubscriptionUpdate } from "./updates/subscription.update";
+import { DebtModule } from "../debt/debt.module";
+import { DebtFlow } from "./flows/debt.flow";
+import { DebtUpdate } from "./updates/debt.update";
 import { WebAppMenuService } from "./webapp-menu.service";
 
 @Module({
@@ -39,6 +42,7 @@ import { WebAppMenuService } from "./webapp-menu.service";
     HabitModule,
     TaskModule,
     SubscriptionModule,
+    DebtModule,
     TelegramStateModule,
     TelegrafModule.forRootAsync({
       imports: [TelegramStateModule],
@@ -78,6 +82,7 @@ import { WebAppMenuService } from "./webapp-menu.service";
     HabitUpdate,
     TaskUpdate,
     SubscriptionUpdate,
+    DebtUpdate,
     TelegramService,
     WebAppMenuService,
     OperationFlow,
@@ -90,6 +95,7 @@ import { WebAppMenuService } from "./webapp-menu.service";
     HabitFlow,
     TaskFlow,
     SubscriptionFlow,
+    DebtFlow,
   ],
 })
 export class TelegramModule {}

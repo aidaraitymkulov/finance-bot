@@ -1,4 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import { Markup } from "telegraf";
+import { DebtService } from "../../debt/debt.service";
+import { normalizePerson, personRef, validatePerson } from "../../debt/debt.util";
+import { UserEntity } from "../../user/user.entity";
 import { CategoryService } from "../../category/category.service";
 import { CategoryType } from "../../category/category-type.enum";
 import { OperationService } from "../../operation/operation.service";
@@ -6,12 +10,21 @@ import { UserService } from "../../user/user.service";
 import { TelegramService } from "../telegram.service";
 import { DialogStateService } from "../state/dialog-state.service";
 import { OperationDialogState } from "../state/dialog-state.types";
+import { PERSON_ERRORS } from "./debt.flow";
+import { buildPeopleKeyboard, formatBalance, formatDebtAmount } from "../views/debt.views";
 import { buildExpenseCategoriesKeyboard } from "../keyboards/expense-categories.keyboard";
 import { buildIncomeCategoriesKeyboard } from "../keyboards/income-categories.keyboard";
 import { getTelegramUser, replyWithMarkup } from "../telegram.helpers";
 import { parseAmount } from "../telegram.parsers";
 import { formatOperationTypeLabel } from "../telegram.formatter";
 import type { BotContext } from "../telegram.helpers";
+
+const SPLIT_ERRORS = {
+  ...PERSON_ERRORS,
+  not_found: "Операция не найдена.",
+  too_much: "Сумма за другого должна быть меньше суммы расхода.",
+  invalid_amount: "Неверная сумма.",
+} as const;
 
 @Injectable()
 export class OperationFlow {
@@ -20,6 +33,7 @@ export class OperationFlow {
     private readonly categoryService: CategoryService,
     private readonly operationService: OperationService,
     private readonly userService: UserService,
+    private readonly debtService: DebtService,
     private readonly telegramService: TelegramService,
   ) {}
 
@@ -43,6 +57,43 @@ export class OperationFlow {
   }
 
   async handleText(ctx: BotContext, userId: string, text: string, state: OperationDialogState) {
+    if (state.step === "split_amount") {
+      const shared = parseAmount(text);
+      if (shared === null || shared >= state.total) {
+        await ctx.reply(
+          `Введите сумму больше нуля и меньше ${formatDebtAmount(state.total)}. ` +
+            "Если всё ушло на другого, используйте «Дал в долг» в разделе «Долги».",
+        );
+        return;
+      }
+
+      this.dialogStateService.set(userId, {
+        flow: "operation",
+        step: "split_person",
+        operationId: state.operationId,
+        shared,
+      });
+      const user = await this.resolveUser(ctx);
+      if (!user) {
+        return;
+      }
+      const recent = await this.debtService.getRecentPeople(user);
+      await ctx.reply("За кого платили? Введите имя.");
+      if (recent.length > 0) {
+        await replyWithMarkup(
+          ctx,
+          "Недавние:",
+          buildPeopleKeyboard(recent, "op_split_who").reply_markup,
+        );
+      }
+      return;
+    }
+
+    if (state.step === "split_person") {
+      await this.finishSplit(ctx, userId, state, text);
+      return;
+    }
+
     if (state.step === "amount") {
       const amount = parseAmount(text);
       if (!amount) {
@@ -98,7 +149,7 @@ export class OperationFlow {
       }
 
       const user = await this.userService.findOrCreateByTelegramUser(telegramUser);
-      await this.operationService.createOperation({
+      const operation = await this.operationService.createOperation({
         user,
         category,
         type: state.type,
@@ -108,9 +159,18 @@ export class OperationFlow {
 
       this.dialogStateService.clear(userId);
       const typeLabel = formatOperationTypeLabel(state.type);
-      await ctx.reply(
-        `${typeLabel} сохранен: ${state.amount.toFixed(2)} — ${category.displayName}`,
-      );
+      const savedText = `${typeLabel} сохранен: ${state.amount.toFixed(2)} — ${category.displayName}`;
+      if (state.type === CategoryType.EXPENSE) {
+        await replyWithMarkup(
+          ctx,
+          savedText,
+          Markup.inlineKeyboard([
+            [Markup.button.callback("👥 Часть за другого", `op_split:${operation.id}`)],
+          ]).reply_markup,
+        );
+      } else {
+        await ctx.reply(savedText);
+      }
       await replyWithMarkup(
         ctx,
         "Выберите действие:",
@@ -141,5 +201,118 @@ export class OperationFlow {
     });
     await ctx.answerCbQuery();
     await ctx.reply("Введите комментарий или '-' без комментария.");
+  }
+
+  /** "👥 Часть за другого" under a saved expense: asks how much of it was for someone else. */
+  async startSplit(ctx: BotContext, userId: string, operationId: string) {
+    const user = await this.resolveUser(ctx);
+    if (!user) {
+      return;
+    }
+
+    const operation = await this.operationService.findOwned(user, operationId);
+    if (!operation || operation.type !== CategoryType.EXPENSE) {
+      await ctx.answerCbQuery("Операция не найдена.");
+      return;
+    }
+    this.dialogStateService.set(userId, {
+      flow: "operation",
+      step: "split_amount",
+      operationId,
+      total: operation.amount,
+    });
+    await ctx.answerCbQuery();
+    await replyWithMarkup(
+      ctx,
+      `В расходе сейчас ${formatDebtAmount(operation.amount)}. Сколько из этого ушло на другого?`,
+      this.telegramService.getCancelKeyboard().reply_markup,
+    );
+  }
+
+  async handleSplitPersonPicked(ctx: BotContext, userId: string, ref: string) {
+    const state = this.dialogStateService.get(userId);
+    if (!state || state.flow !== "operation" || state.step !== "split_person") {
+      await ctx.answerCbQuery("Сначала нажмите «Часть за другого» под расходом.");
+      return;
+    }
+
+    // Claim the step right away: a second tap on a person button then finds no dialog and is
+    // rejected, so the same split cannot be written twice.
+    this.dialogStateService.clear(userId);
+
+    const user = await this.resolveUser(ctx);
+    if (!user) {
+      return;
+    }
+    const recent = await this.debtService.getRecentPeople(user, 20);
+    const picked = recent.find((item) => personRef(item.personKey) === ref);
+    if (!picked) {
+      this.dialogStateService.set(userId, state);
+      await ctx.answerCbQuery("Человек не найден.");
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await this.finishSplit(ctx, userId, state, picked.person);
+  }
+
+  private async finishSplit(
+    ctx: BotContext,
+    userId: string,
+    state: Extract<OperationDialogState, { step: "split_person" }>,
+    person: string,
+  ) {
+    const personError = validatePerson(person);
+    if (personError) {
+      await ctx.reply(PERSON_ERRORS[personError]);
+      return;
+    }
+
+    this.dialogStateService.clear(userId);
+
+    const user = await this.resolveUser(ctx);
+    if (!user) {
+      return;
+    }
+
+    const result = await this.debtService.splitOperation(
+      user,
+      state.operationId,
+      state.shared,
+      person,
+    );
+
+    if (!result.split) {
+      await ctx.reply(SPLIT_ERRORS[result.reason]);
+    } else {
+      const operation = await this.operationService.findOwned(user, state.operationId);
+      const { person: personName, personKey } = normalizePerson(person);
+      const balance = await this.debtService.getBalance(user, personKey);
+      await replyWithMarkup(
+        ctx,
+        [
+          `✅ В расходе осталась твоя доля: ${formatDebtAmount(operation?.amount ?? 0)}.`,
+          `👤 ${personName}: ${formatBalance(balance)} (за него ${formatDebtAmount(result.amount)}).`,
+        ].join("\n"),
+        Markup.inlineKeyboard([
+          [Markup.button.callback("👥 Ещё за кого-то", `op_split:${state.operationId}`)],
+        ]).reply_markup,
+      );
+    }
+
+    await replyWithMarkup(
+      ctx,
+      "Выберите действие:",
+      this.telegramService.getFinanceMenuKeyboard().reply_markup,
+    );
+  }
+
+  private async resolveUser(ctx: BotContext): Promise<UserEntity | null> {
+    const telegramUser = getTelegramUser(ctx);
+    if (!telegramUser) {
+      await ctx.reply("Не удалось определить пользователя.");
+      return null;
+    }
+    return this.userService.findOrCreateByTelegramUser(telegramUser);
   }
 }
