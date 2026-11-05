@@ -138,3 +138,64 @@ describe("DebtService.getBalances", () => {
     expect(await service.getBalance(user, "несуществует")).toBe(0);
   });
 });
+
+const setupManager = (options: { operation?: unknown; entries?: unknown[] }) => {
+  const manager = {
+    findOne: jest.fn().mockResolvedValue(options.operation ?? null),
+    find: jest.fn().mockResolvedValue(options.entries ?? []),
+    update: jest.fn().mockResolvedValue({}),
+    remove: jest.fn().mockResolvedValue({}),
+  };
+  const dataSource = {
+    transaction: jest.fn((callback: (m: unknown) => unknown) => callback(manager)),
+  };
+  return { service: new DebtService({} as never, dataSource as never), manager };
+};
+
+describe("DebtService.cancelSplit", () => {
+  it("returns the shared amount to the expense and removes the SPLIT entries", async () => {
+    const entries = [{ amount: 1500 }, { amount: 800 }];
+    const { service, manager } = setupManager({ operation: { amount: 2700 }, entries });
+
+    const result = await service.cancelSplit(user, "op-1");
+
+    expect(result).toEqual({ cancelled: true, restored: 2300 });
+    expect(manager.update).toHaveBeenCalledWith(expect.anything(), "op-1", {
+      amount: 5000,
+      sharedAmount: null,
+    });
+    expect(manager.remove).toHaveBeenCalledWith(entries);
+  });
+
+  it("does nothing when the operation has no split", async () => {
+    const { service, manager } = setupManager({ operation: { amount: 5000 }, entries: [] });
+
+    expect(await service.cancelSplit(user, "op-1")).toEqual({ cancelled: false, restored: 0 });
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("DebtService.deleteOperation", () => {
+  it("deletes the operation together with its debt entries", async () => {
+    const operation = { id: "op-1" };
+    const entries = [{ amount: 1500 }];
+    const { service, manager } = setupManager({ operation, entries });
+
+    expect(await service.deleteOperation(user, "op-1")).toEqual({
+      deleted: true,
+      removedEntries: 1,
+    });
+    expect(manager.remove).toHaveBeenNthCalledWith(1, entries);
+    expect(manager.remove).toHaveBeenNthCalledWith(2, operation);
+  });
+
+  it("reports a missing operation without deleting anything", async () => {
+    const { service, manager } = setupManager({ operation: null });
+
+    expect(await service.deleteOperation(user, "op-1")).toEqual({
+      deleted: false,
+      removedEntries: 0,
+    });
+    expect(manager.remove).not.toHaveBeenCalled();
+  });
+});

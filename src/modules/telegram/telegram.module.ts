@@ -29,6 +29,8 @@ import { SubscriptionModule } from "../subscription/subscription.module";
 import { SubscriptionFlow } from "./flows/subscription.flow";
 import { SubscriptionUpdate } from "./updates/subscription.update";
 import { DebtModule } from "../debt/debt.module";
+import { OperationEditFlow } from "./flows/operation-edit.flow";
+import { OperationEditUpdate } from "./updates/operation-edit.update";
 import { DebtFlow } from "./flows/debt.flow";
 import { DebtUpdate } from "./updates/debt.update";
 import { WebAppMenuService } from "./webapp-menu.service";
@@ -83,6 +85,7 @@ import { WebAppMenuService } from "./webapp-menu.service";
     TaskUpdate,
     SubscriptionUpdate,
     DebtUpdate,
+    OperationEditUpdate,
     TelegramService,
     WebAppMenuService,
     OperationFlow,
@@ -96,6 +99,7 @@ import { WebAppMenuService } from "./webapp-menu.service";
     TaskFlow,
     SubscriptionFlow,
     DebtFlow,
+    OperationEditFlow,
   ],
 })
 export class TelegramModule {}

@@ -9,6 +9,7 @@ export const FINANCE_MENU_BUTTONS = {
   categories: "🗂 Категории",
   last: "🧾 Последние",
   excel: "📥 Отчёт",
+  debts: "🤝 Долги",
 } as const;
 
 export const buildFinanceMenuKeyboard = () =>
@@ -16,5 +17,6 @@ export const buildFinanceMenuKeyboard = () =>
     [FINANCE_MENU_BUTTONS.income, FINANCE_MENU_BUTTONS.expense],
     [FINANCE_MENU_BUTTONS.stats, FINANCE_MENU_BUTTONS.rating],
     [FINANCE_MENU_BUTTONS.categories, FINANCE_MENU_BUTTONS.last],
-    [FINANCE_MENU_BUTTONS.excel, MAIN_MENU_BUTTONS.back],
+    [FINANCE_MENU_BUTTONS.excel, FINANCE_MENU_BUTTONS.debts],
+    [MAIN_MENU_BUTTONS.back],
   ]).resize();

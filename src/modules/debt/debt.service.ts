@@ -182,4 +182,63 @@ export class DebtService {
       return { split: true, amount } as const;
     });
   }
+
+  /** Debt entries created by splitting the operation, oldest first. */
+  getOperationSplits(user: UserEntity, operationId: string): Promise<DebtEntryEntity[]> {
+    return this.entryRepository.find({
+      where: { user: { id: user.id }, operation: { id: operationId } },
+      order: { createdAt: "ASC" },
+    });
+  }
+
+  /**
+   * Undoes `splitOperation` for all people: the shared amount returns to the expense and the
+   * SPLIT entries are deleted. Repayments recorded separately are not touched.
+   */
+  async cancelSplit(
+    user: UserEntity,
+    operationId: string,
+  ): Promise<{ cancelled: boolean; restored: number }> {
+    return this.dataSource.transaction(async (manager) => {
+      const operation = await manager.findOne(OperationEntity, {
+        where: { id: operationId, user: { id: user.id } },
+      });
+      const entries = await manager.find(DebtEntryEntity, {
+        where: { user: { id: user.id }, operation: { id: operationId } },
+      });
+      if (!operation || entries.length === 0) {
+        return { cancelled: false, restored: 0 };
+      }
+
+      const restored = roundMoney(entries.reduce((sum, entry) => sum + entry.amount, 0));
+      await manager.update(OperationEntity, operationId, {
+        amount: roundMoney(operation.amount + restored),
+        sharedAmount: null,
+      });
+      await manager.remove(entries);
+      return { cancelled: true, restored };
+    });
+  }
+
+  /** Deletes the operation together with the debt entries its split created. */
+  async deleteOperation(
+    user: UserEntity,
+    operationId: string,
+  ): Promise<{ deleted: boolean; removedEntries: number }> {
+    return this.dataSource.transaction(async (manager) => {
+      const operation = await manager.findOne(OperationEntity, {
+        where: { id: operationId, user: { id: user.id } },
+      });
+      if (!operation) {
+        return { deleted: false, removedEntries: 0 };
+      }
+
+      const entries = await manager.find(DebtEntryEntity, {
+        where: { user: { id: user.id }, operation: { id: operationId } },
+      });
+      await manager.remove(entries);
+      await manager.remove(operation);
+      return { deleted: true, removedEntries: entries.length };
+    });
+  }
 }

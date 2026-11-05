@@ -8,8 +8,10 @@ import { getTelegramUser, replyWithMarkup } from "../telegram.helpers";
 import { TelegramService } from "../telegram.service";
 import type { BotContext } from "../telegram.helpers";
 import { UserEntity } from "../../user/user.entity";
+import { OperationEntity } from "../../operation/operation.entity";
 
 const LAST_PAGE_SIZE = 10;
+const EDIT_BUTTONS_PER_ROW = 5;
 
 @Injectable()
 export class LastFlow {
@@ -63,7 +65,7 @@ export class LastFlow {
       return;
     }
 
-    const lines = items.map((operation) => {
+    const lines = items.map((operation, index) => {
       const date = formatDateTime(operation.createdAt);
       const typeLabel = formatOperationTypeLabel(operation.type ?? CategoryType.EXPENSE);
       const baseLine = `${date} • ${typeLabel} • ${operation.category.displayName} • ${operation.amount.toFixed(
@@ -74,23 +76,31 @@ export class LastFlow {
           ? ` (ещё ${operation.sharedAmount.toFixed(2)} за другого)`
           : "";
       const comment = operation.comment?.trim();
-      return comment ? `${baseLine}${shared}\n💬 ${comment}` : `${baseLine}${shared}`;
+      const line = `${index + 1}. ${baseLine}${shared}`;
+      return comment ? `${line}\n💬 ${comment}` : line;
     });
 
     const message = ["Последние операции:", ...lines].join("\n");
 
-    if (hasMore) {
-      const nextOffset = offset + items.length;
-      await replyWithMarkup(ctx, message, this.buildLastMoreKeyboard(nextOffset).reply_markup);
-      return;
-    }
-
-    await ctx.reply(message);
+    await replyWithMarkup(
+      ctx,
+      message,
+      this.buildKeyboard(items, hasMore ? offset + items.length : null).reply_markup,
+    );
   }
 
-  private buildLastMoreKeyboard(nextOffset: number) {
-    return Markup.inlineKeyboard([
-      Markup.button.callback("➕ Показать еще", `last_more:${nextOffset}`),
-    ]);
+  /** "✏️ N" buttons (N = the line number above, 5 per row) and, when needed, "show more". */
+  private buildKeyboard(items: OperationEntity[], nextOffset: number | null) {
+    const editButtons = items.map((operation, index) =>
+      Markup.button.callback(`✏️ ${index + 1}`, `op_edit:${operation.id}`),
+    );
+    const rows: ReturnType<typeof Markup.button.callback>[][] = [];
+    for (let i = 0; i < editButtons.length; i += EDIT_BUTTONS_PER_ROW) {
+      rows.push(editButtons.slice(i, i + EDIT_BUTTONS_PER_ROW));
+    }
+    if (nextOffset !== null) {
+      rows.push([Markup.button.callback("➕ Показать еще", `last_more:${nextOffset}`)]);
+    }
+    return Markup.inlineKeyboard(rows);
   }
 }
