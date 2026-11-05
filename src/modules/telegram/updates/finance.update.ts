@@ -183,6 +183,20 @@ export class FinanceUpdate {
     );
   }
 
+  @Action(/^op_split:([0-9a-f-]{36})$/)
+  async onOperationSplit(@Ctx() ctx: BotContext) {
+    await handleCallbackParams(ctx, "Не удалось определить операцию.", (userId, [operationId]) =>
+      this.operationFlow.startSplit(ctx, userId, operationId),
+    );
+  }
+
+  @Action(/^op_split_who:([0-9a-f]{10})$/)
+  async onOperationSplitPerson(@Ctx() ctx: BotContext) {
+    await handleCallbackParams(ctx, "Не удалось определить человека.", (userId, [ref]) =>
+      this.operationFlow.handleSplitPersonPicked(ctx, userId, ref),
+    );
+  }
+
   @Action(/^last_more:(\d+)$/)
   async onLastMore(@Ctx() ctx: BotContext) {
     const [offsetRaw] = getCallbackParts(ctx);

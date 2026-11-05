@@ -69,8 +69,12 @@ export class LastFlow {
       const baseLine = `${date} • ${typeLabel} • ${operation.category.displayName} • ${operation.amount.toFixed(
         2,
       )}`;
+      const shared =
+        operation.sharedAmount !== null
+          ? ` (ещё ${operation.sharedAmount.toFixed(2)} за другого)`
+          : "";
       const comment = operation.comment?.trim();
-      return comment ? `${baseLine}\n💬 ${comment}` : baseLine;
+      return comment ? `${baseLine}${shared}\n💬 ${comment}` : `${baseLine}${shared}`;
     });
 
     const message = ["Последние операции:", ...lines].join("\n");

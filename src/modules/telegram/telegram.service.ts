@@ -5,6 +5,7 @@ import { buildFinanceMenuKeyboard } from "./keyboards/finance-menu.keyboard";
 import { buildHabitsMenuKeyboard } from "./keyboards/habits-menu.keyboard";
 import { buildTasksMenuKeyboard } from "./keyboards/tasks-menu.keyboard";
 import { buildSubscriptionsMenuKeyboard } from "./keyboards/subscriptions-menu.keyboard";
+import { buildDebtsMenuKeyboard } from "./keyboards/debts-menu.keyboard";
 import { buildPausedKeyboard } from "./keyboards/paused.keyboard";
 import { DialogFlow } from "./state/dialog-state.types";
 
@@ -17,6 +18,7 @@ export class TelegramService {
       "🔥 Привычки — ежедневные отметки и серии, напоминание в 22:00.",
       "✅ Задачи — дела на конкретный день, утренний план в 09:00.",
       "🔔 Подписки — регулярные платежи, напоминание за 3 дня, за 1 день и в день списания.",
+      "🤝 Долги — кто тебе должен и кому должен ты, без искажения статистики.",
       "Используйте /help, чтобы увидеть список команд.",
     ].join("\n");
   }
@@ -41,6 +43,10 @@ export class TelegramService {
     return buildSubscriptionsMenuKeyboard();
   }
 
+  getDebtsMenuKeyboard() {
+    return buildDebtsMenuKeyboard();
+  }
+
   /** Menu of the section a dialog belongs to, so cancelling keeps the user in that section. */
   getMenuKeyboardForFlow(flow?: DialogFlow) {
     switch (flow) {
@@ -56,6 +62,8 @@ export class TelegramService {
         return this.getTasksMenuKeyboard();
       case "subscription":
         return this.getSubscriptionsMenuKeyboard();
+      case "debt":
+        return this.getDebtsMenuKeyboard();
       default:
         return this.getMainMenuKeyboard();
     }

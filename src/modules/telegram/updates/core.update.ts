@@ -17,6 +17,9 @@ import { ExcelFlow } from "../flows/excel.flow";
 import { HabitFlow } from "../flows/habit.flow";
 import { TaskFlow } from "../flows/task.flow";
 import { SubscriptionFlow } from "../flows/subscription.flow";
+import { DebtFlow } from "../flows/debt.flow";
+import { DEBTS_MENU_BUTTONS } from "../keyboards/debts-menu.keyboard";
+import { DebtKind } from "../../debt/debt-kind.enum";
 import { TelegramService } from "../telegram.service";
 import {
   BotContext,
@@ -47,6 +50,7 @@ export class CoreUpdate {
     private readonly habitFlow: HabitFlow,
     private readonly taskFlow: TaskFlow,
     private readonly subscriptionFlow: SubscriptionFlow,
+    private readonly debtFlow: DebtFlow,
   ) {}
 
   @Start()
@@ -176,6 +180,9 @@ export class CoreUpdate {
       case "subscription":
         await this.subscriptionFlow.handleText(ctx, userId, text, state);
         return;
+      case "debt":
+        await this.debtFlow.handleText(ctx, userId, text, state);
+        return;
     }
   }
 
@@ -196,6 +203,9 @@ export class CoreUpdate {
         return;
       case MAIN_MENU_BUTTONS.subscriptions:
         await this.subscriptionFlow.showMenu(ctx);
+        return;
+      case MAIN_MENU_BUTTONS.debts:
+        await this.debtFlow.showMenu(ctx);
         return;
       case MAIN_MENU_BUTTONS.help:
         await this.helpFlow.sendHelp(ctx);
@@ -251,6 +261,22 @@ export class CoreUpdate {
         return;
       case SUBSCRIPTIONS_MENU_BUTTONS.list:
         await this.subscriptionFlow.sendList(ctx);
+        return;
+
+      case DEBTS_MENU_BUTTONS.list:
+        await this.debtFlow.sendBalances(ctx);
+        return;
+      case DEBTS_MENU_BUTTONS.lend:
+        await this.debtFlow.start(ctx, userId, DebtKind.LEND);
+        return;
+      case DEBTS_MENU_BUTTONS.borrow:
+        await this.debtFlow.start(ctx, userId, DebtKind.BORROW);
+        return;
+      case DEBTS_MENU_BUTTONS.repaidToMe:
+        await this.debtFlow.start(ctx, userId, DebtKind.REPAID_TO_ME);
+        return;
+      case DEBTS_MENU_BUTTONS.repaidByMe:
+        await this.debtFlow.start(ctx, userId, DebtKind.REPAID_BY_ME);
         return;
 
       default:

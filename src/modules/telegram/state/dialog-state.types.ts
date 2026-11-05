@@ -1,5 +1,6 @@
 import { CategoryType } from "../../category/category-type.enum";
 import type { SubscriptionPeriod } from "../../subscription/next-payment.util";
+import type { DebtKind } from "../../debt/debt-kind.enum";
 
 export type OperationDialogState =
   | { flow: "operation"; step: "amount"; type: CategoryType }
@@ -10,7 +11,10 @@ export type OperationDialogState =
       type: CategoryType;
       amount: number;
       categoryCode: string;
-    };
+    }
+  // "Part for someone else" after an expense was saved; `total` is what the operation holds now.
+  | { flow: "operation"; step: "split_amount"; operationId: string; total: number }
+  | { flow: "operation"; step: "split_person"; operationId: string; shared: number };
 
 export type StatsDialogState =
   | { flow: "stats"; step: "stats_mode" }
@@ -72,6 +76,11 @@ export type SubscriptionDialogState =
       period: SubscriptionPeriod;
     };
 
+export type DebtDialogState =
+  | { flow: "debt"; step: "debt_person"; kind: DebtKind }
+  | { flow: "debt"; step: "debt_amount"; kind: DebtKind; person: string }
+  | { flow: "debt"; step: "debt_comment"; kind: DebtKind; person: string; amount: number };
+
 export type DialogState =
   | OperationDialogState
   | StatsDialogState
@@ -80,6 +89,7 @@ export type DialogState =
   | ExcelDialogState
   | HabitDialogState
   | TaskDialogState
-  | SubscriptionDialogState;
+  | SubscriptionDialogState
+  | DebtDialogState;
 
 export type DialogFlow = DialogState["flow"];

@@ -17,6 +17,12 @@ export class OperationService {
     return this.operationRepository.save(entity);
   }
 
+  findOwned(user: UserEntity, operationId: string): Promise<OperationEntity | null> {
+    return this.operationRepository.findOne({
+      where: { id: operationId, user: { id: user.id } },
+    });
+  }
+
   async getLastOperationsPage(
     user: UserEntity,
     limit = 10,

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Personal assistant Telegram bot (NestJS 11 + `nestjs-telegraf` + TypeORM + PostgreSQL) with four sections: **Finance** (income/expenses, stats, ratings, categories, Excel export via `exceljs`), **Habits** (daily check-ins with streaks, 22:00 poll), **Tasks** (one-off tasks bound to a date, 09:00 morning digest) and **Subscriptions** (recurring payments, 09:00 reminders 3 days / 1 day / on the charge day). All user-facing text is in Russian.
+Personal assistant Telegram bot (NestJS 11 + `nestjs-telegraf` + TypeORM + PostgreSQL) with five sections: **Finance** (income/expenses, stats, ratings, categories, Excel export via `exceljs`), **Habits** (daily check-ins with streaks, 22:00 poll), **Tasks** (one-off tasks bound to a date, 09:00 morning digest), **Subscriptions** (recurring payments, 09:00 reminders 3 days / 1 day / on the charge day) and **Debts** (who owes whom; loans, repayments and purchases paid for someone else, kept out of income/expense stats). All user-facing text is in Russian.
 
 ## Commands
 
@@ -38,7 +38,7 @@ Env files load in order `.env.${NODE_ENV}`, `.env.development`, `.env` (both in 
 
 ## Architecture
 
-Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `category`, `operation`, `report` (finance), `habit`, `task`, `subscription`. `telegram` (bot) and `webapp` (Mini App HTTP API) are the UI layers and depend on them. `scheduler` sends the cron notifications.
+Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `category`, `operation`, `report` (finance), `habit`, `task`, `subscription`, `debt`. `telegram` (bot) and `webapp` (Mini App HTTP API) are the UI layers and depend on them. `scheduler` sends the cron notifications.
 
 **Telegram layer (`src/modules/telegram/`)**:
 
@@ -63,6 +63,7 @@ Domain modules in `src/modules/` hold TypeORM entities + services: `user`, `cate
 - Finance: `CategoryEntity` (global, not per-user; unique `(type, code)`; `CategoryType` = `INCOME | EXPENSE`), `OperationEntity` (user + category + type + `numeric(12,2)` amount transformed to `number` + optional comment). `CategoryService.onModuleInit` seeds `DEFAULT_CATEGORIES` from `category.deafult.ts` (sic).
 - `HabitEntity` (soft-deleted via `isActive`) and `HabitCheckinEntity` (one per habit per local date, `DONE | SKIPPED`, re-check overwrites). Streaks are computed on read by `habit/streak.util.ts` (`calcStreak`): consecutive DONE days ending today, or yesterday if today isn't checked yet.
 - `SubscriptionEntity` (`amount`, `period` = `monthly | yearly`, `billingDay`, `nextPaymentDate` local date; no currency). `subscription/next-payment.util.ts` rolls dates forward from `billingDay` so a 31st-billed subscription goes Jan 31 → Feb 28 → Mar 31. **`nextPaymentDate` only moves on user action** (never by cron or on read — otherwise "passed" is indistinguishable from "paid"), so it can be in the past = unpaid. Buttons (under reminders and in the list) are `sub_paid|sub_skip:<uuid>:<YYYYMMDD>:<rem|list>`: `markPaid` records an `EXPENSE` in the default category `subscriptions` (`SUBSCRIPTIONS_CATEGORY_CODE`), `skip` doesn't; both move the date one period via a conditional `UPDATE ... WHERE nextPaymentDate = <date from button>`, so a repeated tap is a no-op. Only `create` rolls a past start date forward (`nextPaymentOnOrAfter`).
+- `DebtEntryEntity` (per person, `personKey` = lower-cased name; `kind` = `LEND | BORROW | REPAID_TO_ME | REPAID_BY_ME | SPLIT`; signed sum by `debt.util.ts` `debtSign` = balance, positive = they owe me). Loans/repayments never create operations, so stats are untouched. "👥 Часть за другого" under a saved expense calls `DebtService.splitOperation`: in one transaction it lowers `operations.amount` to the user's own share, accumulates the rest in `operations.sharedAmount` (informational only) and adds a `SPLIT` entry; it can be repeated for several people (the button reappears), the UPDATE only requires `amount > shared`. A double tap is blocked by the dialog state (the step is claimed/cleared before the write), not by the DB. Person buttons use `personRef` (short hash) as callback data.
 - `TaskEntity` (`dueDate` local date, `isDone`). Overdue tasks are never moved: `TaskService.getOpenUntil(user, date)` returns all open tasks due up to that date, which is how they carry over.
 
 Note: `src/common/enums/*.ts` are empty files — the real `CategoryType` is `src/modules/category/category-type.enum.ts`. `InitSchema.down` references constraint names that TypeORM `synchronize` renamed in databases where it ran (it was accidentally always on before the `DB_SYNCHRONIZE` fix), so reverting the first migration may fail there.
