@@ -12,6 +12,14 @@ export type OperationDialogState =
       amount: number;
       categoryCode: string;
     }
+  // One-line quick input ("500 кофе") whose category is still unknown: waits for a button.
+  | {
+      flow: "operation";
+      step: "quick_category";
+      type: CategoryType;
+      amount: number;
+      comment: string | null;
+    }
   // "Part for someone else" after an expense was saved; `total` is what the operation holds now.
   | { flow: "operation"; step: "split_amount"; operationId: string; total: number }
   | { flow: "operation"; step: "split_person"; operationId: string; shared: number };

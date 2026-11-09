@@ -290,7 +290,10 @@ export class CoreUpdate {
         return;
 
       default:
-        await ctx.reply("Не понял команду. Используйте меню кнопок.");
+        if (await this.operationFlow.handleQuickInput(ctx, userId, text)) {
+          return;
+        }
+        await ctx.reply("Не понял. Запишите трату так: 500 кофе (доход: +50000 работа).");
         await this.showMainMenu(ctx);
     }
   }
