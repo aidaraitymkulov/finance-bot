@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { CategoryKeywordService } from "../../category/category-keyword.service";
 import { CategoryService } from "../../category/category.service";
 import { DebtService } from "../../debt/debt.service";
 import { OperationService } from "../../operation/operation.service";
@@ -27,6 +28,7 @@ export class OperationEditFlow {
     private readonly operationService: OperationService,
     private readonly debtService: DebtService,
     private readonly categoryService: CategoryService,
+    private readonly categoryKeywordService: CategoryKeywordService,
     private readonly userService: UserService,
     private readonly telegramService: TelegramService,
   ) {}
@@ -132,6 +134,10 @@ export class OperationEditFlow {
     });
     await ctx.answerCbQuery("Категория изменена ✅");
     if (updated) {
+      // A manual choice corrects the hints, so the same words land in the right category next time.
+      await this.categoryKeywordService
+        .remember(found.user, category, updated.comment)
+        .catch(() => undefined);
       await this.sendCard(ctx, found.user, updated);
     }
   }
@@ -200,6 +206,21 @@ export class OperationEditFlow {
       result.deleted
         ? `🗑 Операция удалена${result.removedEntries > 0 ? " вместе с долгами по ней" : ""}.`
         : "Операция не найдена (возможно, уже удалена).",
+    );
+  }
+
+  /** "↩️ Отменить" under a freshly saved operation: removes it without a confirmation. */
+  async undo(ctx: BotContext, operationId: string) {
+    const user = await this.resolveUser(ctx);
+    if (!user) {
+      return;
+    }
+
+    const result = await this.debtService.deleteOperation(user, operationId);
+    await ctx.answerCbQuery(result.deleted ? "Отменено ↩️" : "Операция не найдена.");
+    await editMessageSafe(
+      ctx,
+      result.deleted ? "↩️ Операция отменена." : "Операция не найдена (возможно, уже удалена).",
     );
   }
 

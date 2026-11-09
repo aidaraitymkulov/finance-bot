@@ -1,8 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Markup } from "telegraf";
 import { DebtService } from "../../debt/debt.service";
 import { normalizePerson, personRef, validatePerson } from "../../debt/debt.util";
 import { UserEntity } from "../../user/user.entity";
+import { CategoryEntity } from "../../category/category.entity";
+import { CategoryKeywordService } from "../../category/category-keyword.service";
 import { CategoryService } from "../../category/category.service";
 import { CategoryType } from "../../category/category-type.enum";
 import { OperationService } from "../../operation/operation.service";
@@ -16,6 +18,7 @@ import { buildExpenseCategoriesKeyboard } from "../keyboards/expense-categories.
 import { buildIncomeCategoriesKeyboard } from "../keyboards/income-categories.keyboard";
 import { getTelegramUser, replyWithMarkup } from "../telegram.helpers";
 import { parseAmount } from "../telegram.parsers";
+import { parseQuickInput } from "../quick-input.parser";
 import { formatOperationTypeLabel } from "../telegram.formatter";
 import type { BotContext } from "../telegram.helpers";
 
@@ -28,9 +31,12 @@ const SPLIT_ERRORS = {
 
 @Injectable()
 export class OperationFlow {
+  private readonly logger = new Logger(OperationFlow.name);
+
   constructor(
     private readonly dialogStateService: DialogStateService,
     private readonly categoryService: CategoryService,
+    private readonly categoryKeywordService: CategoryKeywordService,
     private readonly operationService: OperationService,
     private readonly userService: UserService,
     private readonly debtService: DebtService,
@@ -91,6 +97,16 @@ export class OperationFlow {
 
     if (state.step === "split_person") {
       await this.finishSplit(ctx, userId, state, text);
+      return;
+    }
+
+    if (state.step === "quick_category") {
+      // A new line while the buttons are open replaces the pending one.
+      this.dialogStateService.clear(userId);
+      if (!(await this.handleQuickInput(ctx, userId, text))) {
+        await ctx.reply("Выберите категорию кнопкой выше или нажмите «Отмена».");
+        this.dialogStateService.set(userId, state);
+      }
       return;
     }
 
@@ -181,6 +197,11 @@ export class OperationFlow {
 
   async handleCategorySelected(ctx: BotContext, userId: string, categoryCode: string) {
     const state = this.dialogStateService.get(userId);
+    if (state?.flow === "operation" && state.step === "quick_category") {
+      await this.finishQuickCategory(ctx, userId, state, categoryCode);
+      return;
+    }
+
     if (!state || state.flow !== "operation" || state.step !== "category") {
       await ctx.answerCbQuery("Сначала введите сумму.");
       return;
@@ -201,6 +222,146 @@ export class OperationFlow {
     });
     await ctx.answerCbQuery();
     await ctx.reply("Введите комментарий или '-' без комментария.");
+  }
+
+  /**
+   * One-line input ("500 кофе", "+50000 работа"). Returns false when the text is not an
+   * operation (no amount at its edge), so the caller can handle it as unknown text.
+   */
+  async handleQuickInput(ctx: BotContext, userId: string, text: string): Promise<boolean> {
+    const [expense, income] = await Promise.all([
+      this.categoryService.getCategoriesByType(CategoryType.EXPENSE),
+      this.categoryService.getCategoriesByType(CategoryType.INCOME),
+    ]);
+    const parsed = parseQuickInput(text, {
+      [CategoryType.EXPENSE]: expense,
+      [CategoryType.INCOME]: income,
+    });
+    if (!parsed) {
+      return false;
+    }
+    if (!parsed.ok) {
+      await ctx.reply("Сумма должна быть больше нуля и не больше 9 999 999 999.");
+      return true;
+    }
+
+    const user = await this.resolveUser(ctx);
+    if (!user) {
+      return true;
+    }
+
+    const categories = parsed.type === CategoryType.INCOME ? income : expense;
+    let category = categories.find((item) => item.code === parsed.categoryCode) ?? null;
+    let fromKeywords = false;
+    if (!category) {
+      category = await this.categoryKeywordService.findCategory(user, parsed.type, parsed.comment);
+      fromKeywords = category !== null;
+    }
+
+    if (!category) {
+      this.dialogStateService.set(userId, {
+        flow: "operation",
+        step: "quick_category",
+        type: parsed.type,
+        amount: parsed.amount,
+        comment: parsed.comment,
+      });
+      const keyboard =
+        parsed.type === CategoryType.INCOME
+          ? buildIncomeCategoriesKeyboard(categories)
+          : buildExpenseCategoriesKeyboard(categories);
+      const comment = parsed.comment ? ` · ${parsed.comment}` : "";
+      await replyWithMarkup(
+        ctx,
+        `${formatOperationTypeLabel(parsed.type)} ${formatDebtAmount(parsed.amount)}${comment}\nВыберите категорию:`,
+        keyboard.reply_markup,
+      );
+      return true;
+    }
+
+    await this.saveQuickOperation(ctx, user, {
+      type: parsed.type,
+      amount: parsed.amount,
+      comment: parsed.comment,
+      category,
+      fromKeywords,
+    });
+    return true;
+  }
+
+  private async finishQuickCategory(
+    ctx: BotContext,
+    userId: string,
+    state: Extract<OperationDialogState, { step: "quick_category" }>,
+    categoryCode: string,
+  ) {
+    const category = await this.categoryService.getByCode(state.type, categoryCode);
+    if (!category) {
+      await ctx.answerCbQuery("Категория не найдена.");
+      return;
+    }
+
+    // Claim the step before writing: a second tap on a button finds no dialog and is rejected.
+    this.dialogStateService.clear(userId);
+    const user = await this.resolveUser(ctx);
+    if (!user) {
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await this.saveQuickOperation(ctx, user, {
+      type: state.type,
+      amount: state.amount,
+      comment: state.comment,
+      category,
+      fromKeywords: false,
+    });
+  }
+
+  private async saveQuickOperation(
+    ctx: BotContext,
+    user: UserEntity,
+    data: {
+      type: CategoryType;
+      amount: number;
+      comment: string | null;
+      category: CategoryEntity;
+      fromKeywords: boolean;
+    },
+  ) {
+    const operation = await this.operationService.createOperation({
+      user,
+      category: data.category,
+      type: data.type,
+      amount: data.amount,
+      comment: data.comment,
+    });
+
+    try {
+      await this.categoryKeywordService.remember(user, data.category, data.comment);
+    } catch (error) {
+      // The operation is saved; a failed hint must not turn that into an error for the user.
+      this.logger.warn(`Failed to remember category keywords: ${String(error)}`);
+    }
+
+    const id = operation.id;
+    const rows = [
+      [
+        Markup.button.callback("✏️ Изменить", `op_edit:${id}`),
+        Markup.button.callback("↩️ Отменить", `op_undo:${id}`),
+      ],
+      ...(data.fromKeywords
+        ? [[Markup.button.callback("🏷 Не та категория?", `op_e_cat:${id}`)]]
+        : []),
+      ...(data.type === CategoryType.EXPENSE
+        ? [[Markup.button.callback("👥 Часть за другого", `op_split:${id}`)]]
+        : []),
+    ];
+    const lines = [
+      `✅ ${formatOperationTypeLabel(data.type)}: ${formatDebtAmount(data.amount)} — ${data.category.displayName}`,
+      data.comment ? `💬 ${data.comment}` : null,
+    ].filter((line): line is string => line !== null);
+    await replyWithMarkup(ctx, lines.join("\n"), Markup.inlineKeyboard(rows).reply_markup);
   }
 
   /** "👥 Часть за другого" under a saved expense: asks how much of it was for someone else. */

@@ -3,6 +3,7 @@ import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
 import { UserEntity } from "../modules/user/user.entity";
 import { CategoryEntity } from "../modules/category/category.entity";
+import { CategoryKeywordEntity } from "../modules/category/category-keyword.entity";
 import { OperationEntity } from "../modules/operation/operation.entity";
 import { HabitEntity } from "../modules/habit/habit.entity";
 import { HabitCheckinEntity } from "../modules/habit/habit-checkin.entity";
@@ -31,6 +32,7 @@ export default new DataSource({
   entities: [
     UserEntity,
     CategoryEntity,
+    CategoryKeywordEntity,
     OperationEntity,
     HabitEntity,
     HabitCheckinEntity,

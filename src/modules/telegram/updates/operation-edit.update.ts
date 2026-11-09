@@ -18,6 +18,11 @@ export class OperationEditUpdate {
     await handleCallbackParams(ctx, ERROR, (_userId, [id]) => this.editFlow.showCard(ctx, id));
   }
 
+  @Action(/^op_undo:([0-9a-f-]{36})$/)
+  async onUndo(@Ctx() ctx: BotContext) {
+    await handleCallbackParams(ctx, ERROR, (_userId, [id]) => this.editFlow.undo(ctx, id));
+  }
+
   @Action(/^op_e_amount:([0-9a-f-]{36})$/)
   async onAmount(@Ctx() ctx: BotContext) {
     await handleCallbackParams(ctx, ERROR, (userId, [id]) =>
