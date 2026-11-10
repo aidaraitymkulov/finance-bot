@@ -18,7 +18,7 @@ import {
 } from "../../../common/utils/data-range.util";
 import { formatCategoryStatsMessage, formatSummaryMessage } from "../telegram.formatter";
 import { getTelegramUser, replyWithMarkup } from "../telegram.helpers";
-import { parseCustomDateRange } from "../telegram.parsers";
+import { parsePeriodInput } from "../period-input.parser";
 import type { BotContext } from "../telegram.helpers";
 
 const STATS_CATEGORY_PREFIX = "stats_category";
@@ -54,9 +54,9 @@ export class StatsFlow {
       return;
     }
 
-    const range = parseCustomDateRange(text);
+    const range = parsePeriodInput(text);
     if (!range) {
-      await ctx.reply("Неверный формат. Пример: 01.01.2025 31.01.2025");
+      await ctx.reply("Не понял период. Примеры: октябрь, октябрь-ноябрь, 01.01.2025 31.01.2025");
       return;
     }
 
@@ -66,6 +66,20 @@ export class StatsFlow {
     }
 
     await this.sendCategoryStats(ctx, userId, range.start, range.end, range.days);
+  }
+
+  /**
+   * "октябрь", "октябрь-ноябрь", "прошлый месяц": a period written in words, sent with no dialog
+   * active, shows the summary at once. Returns false when the text is not a period.
+   */
+  async handlePeriodText(ctx: BotContext, userId: string, text: string): Promise<boolean> {
+    const range = parsePeriodInput(text);
+    if (!range) {
+      return false;
+    }
+
+    await this.sendSummary(ctx, userId, range.start, range.end, range.days, false);
+    return true;
   }
 
   async handleModeSelected(ctx: BotContext, userId: string, mode: string) {
@@ -246,7 +260,14 @@ export class StatsFlow {
     }
   }
 
-  private async sendSummary(ctx: BotContext, userId: string, start: Date, end: Date, days: number) {
+  private async sendSummary(
+    ctx: BotContext,
+    userId: string,
+    start: Date,
+    end: Date,
+    days: number,
+    showMenu = true,
+  ) {
     const telegramUser = getTelegramUser(ctx);
     if (!telegramUser) {
       await ctx.reply("Не удалось определить пользователя.");
@@ -258,11 +279,13 @@ export class StatsFlow {
 
     this.dialogStateService.clear(userId);
     await ctx.reply(formatSummaryMessage(start, end, summary));
-    await replyWithMarkup(
-      ctx,
-      "Выберите действие:",
-      this.telegramService.getFinanceMenuKeyboard().reply_markup,
-    );
+    if (showMenu) {
+      await replyWithMarkup(
+        ctx,
+        "Выберите действие:",
+        this.telegramService.getFinanceMenuKeyboard().reply_markup,
+      );
+    }
   }
 
   private async sendCategoryStats(
