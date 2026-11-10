@@ -290,10 +290,16 @@ export class CoreUpdate {
         return;
 
       default:
-        if (await this.operationFlow.handleQuickInput(ctx, userId, text)) {
+        // A period is checked first: "октябрь 2025" must not become an expense of 2025.
+        if (
+          (await this.statsFlow.handlePeriodText(ctx, userId, text)) ||
+          (await this.operationFlow.handleQuickInput(ctx, userId, text))
+        ) {
           return;
         }
-        await ctx.reply("Не понял. Запишите трату так: 500 кофе (доход: +50000 работа).");
+        await ctx.reply(
+          "Не понял. Запишите трату так: 500 кофе (доход: +50000 работа) или период для сводки: октябрь-ноябрь.",
+        );
         await this.showMainMenu(ctx);
     }
   }
